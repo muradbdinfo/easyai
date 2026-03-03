@@ -1,0 +1,84 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Jobs\SendMessageJob;
+use App\Models\Chat;
+use App\Models\Message;
+use App\Models\Project;
+use Illuminate\Http\Request;
+
+class MessageController extends Controller
+{
+    /**
+     * Store a new user message and dispatch AI job.
+     */
+    public function store(Request $request, Project $project, Chat $chat)
+    {
+        $tenant = app('tenant');
+
+        abort_if($project->tenant_id !== $tenant->id, 403);
+        abort_if($chat->project_id !== $project->id, 404);
+        abort_if($chat->tenant_id !== $tenant->id, 403);
+
+        if ($chat->isClosed()) {
+            return back()->withErrors(['message' => 'This chat is closed.']);
+        }
+
+        // Quota check
+        if ($tenant->token_quota > 0 && $tenant->tokens_used >= $tenant->token_quota) {
+            return back()->withErrors(['message' => 'Token quota exceeded. Please upgrade your plan.'])
+                         ->with('quota_exceeded', true);
+        }
+
+        $validated = $request->validate([
+            'content' => ['required', 'string', 'max:4000'],
+        ]);
+
+        // Save user message
+        Message::create([
+            'chat_id'   => $chat->id,
+            'tenant_id' => $tenant->id,
+            'role'      => 'user',
+            'content'   => $validated['content'],
+            'tokens'    => (int) ceil(mb_strlen($validated['content']) / 4),
+        ]);
+
+        // Update chat title from first message
+        if ($chat->title === 'New Chat' || $chat->title === null) {
+            $chat->update([
+                'title' => mb_substr($validated['content'], 0, 60),
+            ]);
+        }
+
+        // Dispatch AI job
+        SendMessageJob::dispatch($chat->id, $tenant->id, $request->user()->id);
+
+        return back();
+    }
+
+    /**
+     * Return last 50 messages for polling.
+     */
+    public function index(Request $request, Project $project, Chat $chat)
+    {
+        $tenant = app('tenant');
+
+        abort_if($project->tenant_id !== $tenant->id, 403);
+        abort_if($chat->tenant_id !== $tenant->id, 403);
+
+        $messages = Message::where('chat_id', $chat->id)
+            ->orderBy('created_at', 'asc')
+            ->take(50)
+            ->get();
+
+        return response()->json([
+            'messages' => $messages,
+            'chat'     => [
+                'id'           => $chat->id,
+                'status'       => $chat->status,
+                'total_tokens' => $chat->total_tokens,
+            ],
+        ]);
+    }
+}

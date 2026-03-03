@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TenantController;
 use Illuminate\Support\Facades\Route;
@@ -26,10 +27,17 @@ Route::prefix('v1')->group(function () {
         // Projects
         Route::apiResource('projects', ProjectController::class);
 
-        // Chats (nested under projects)
+        // Chats + Messages (nested under projects)
         Route::prefix('projects/{project}')->group(function () {
             Route::apiResource('chats', ChatController::class)->except(['update']);
             Route::post('chats/{chat}/close', [ChatController::class, 'close']);
+
+            // Messages
+            Route::prefix('chats/{chat}')->group(function () {
+                Route::get('messages',        [MessageController::class, 'index']);
+                Route::post('messages',       [MessageController::class, 'store']);
+                Route::get('messages/status', [MessageController::class, 'status']);
+            });
         });
 
     });

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -16,10 +17,10 @@ Route::domain('easyai.local')->group(function () {
     Route::get('/', fn () => redirect()->route('login'));
 
     Route::middleware('guest')->group(function () {
-        Route::get('/login',    [AuthController::class, 'showLogin'])->name('login');
-        Route::post('/login',   [AuthController::class, 'login']);
-        Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-        Route::post('/register',[AuthController::class, 'register']);
+        Route::get('/login',     [AuthController::class, 'showLogin'])->name('login');
+        Route::post('/login',    [AuthController::class, 'login']);
+        Route::get('/register',  [AuthController::class, 'showRegister'])->name('register');
+        Route::post('/register', [AuthController::class, 'register']);
     });
 
     Route::middleware('auth')->group(function () {
@@ -32,21 +33,22 @@ Route::domain('easyai.local')->group(function () {
             // Projects
             Route::resource('projects', ProjectController::class);
 
-            // Chats (nested under projects)
-            Route::post(
-                '/projects/{project}/chats',
-                [ChatController::class, 'store']
-            )->name('projects.chats.store');
+            // Chats
+            Route::post('/projects/{project}/chats',
+                [ChatController::class, 'store'])->name('projects.chats.store');
 
-            Route::get(
-                '/projects/{project}/chats/{chat}',
-                [ChatController::class, 'show']
-            )->name('projects.chats.show');
+            Route::get('/projects/{project}/chats/{chat}',
+                [ChatController::class, 'show'])->name('projects.chats.show');
 
-            Route::delete(
-                '/projects/{project}/chats/{chat}',
-                [ChatController::class, 'destroy']
-            )->name('projects.chats.destroy');
+            Route::delete('/projects/{project}/chats/{chat}',
+                [ChatController::class, 'destroy'])->name('projects.chats.destroy');
+
+            // Messages
+            Route::post('/projects/{project}/chats/{chat}/messages',
+                [MessageController::class, 'store'])->name('projects.chats.messages.store');
+
+            Route::get('/projects/{project}/chats/{chat}/messages',
+                [MessageController::class, 'index'])->name('projects.chats.messages.index');
 
         });
     });

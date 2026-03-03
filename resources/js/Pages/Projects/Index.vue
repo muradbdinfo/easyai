@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { router, useForm } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
+import { router, useForm, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import {
     FolderOpen, Plus, Trash2, ChevronRight,
@@ -11,15 +11,14 @@ const props = defineProps({
     projects: Array,
 })
 
-// ── New project modal ─────────────────────────────────────────────
+const models = computed(() => usePage().props.ollama_models)
+
 const showModal = ref(false)
 const form = useForm({
-    name: '',
+    name:        '',
     description: '',
-    model: 'llama3',
+    model:       computed(() => models.value?.[0] ?? ''),
 })
-
-const models = ['llama3', 'mistral', 'codellama', 'llama3:70b']
 
 function submit() {
     form.post(route('projects.store'), {
@@ -30,7 +29,6 @@ function submit() {
     })
 }
 
-// ── Delete ────────────────────────────────────────────────────────
 function deleteProject(project) {
     if (!confirm(`Delete "${project.name}" and all its chats?`)) return
     router.delete(route('projects.destroy', project.id))
@@ -60,7 +58,9 @@ function deleteProject(project) {
             <div v-if="projects.length === 0" class="text-center py-24">
                 <FolderOpen class="w-16 h-16 text-slate-600 mx-auto mb-4" />
                 <h3 class="text-lg font-semibold text-slate-300 mb-2">No projects yet</h3>
-                <p class="text-slate-500 mb-6">Create your first project to start chatting with AI.</p>
+                <p class="text-slate-500 mb-6">
+                    Create your first project to start chatting with AI.
+                </p>
                 <button
                     @click="showModal = true"
                     class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
@@ -84,7 +84,9 @@ function deleteProject(project) {
                                 <FolderOpen class="w-5 h-5 text-indigo-400" />
                             </div>
                             <div>
-                                <h3 class="text-white font-semibold text-sm leading-tight">{{ project.name }}</h3>
+                                <h3 class="text-white font-semibold text-sm leading-tight">
+                                    {{ project.name }}
+                                </h3>
                                 <div class="flex items-center gap-1.5 mt-0.5">
                                     <Bot class="w-3 h-3 text-slate-500" />
                                     <span class="text-xs text-slate-500">{{ project.model }}</span>
@@ -100,18 +102,24 @@ function deleteProject(project) {
                     </div>
 
                     <!-- Description -->
-                    <p v-if="project.description" class="text-slate-400 text-sm mb-4 line-clamp-2">
+                    <p v-if="project.description"
+                       class="text-slate-400 text-sm mb-4 line-clamp-2">
                         {{ project.description }}
                     </p>
-                    <p v-else class="text-slate-600 text-sm mb-4 italic">No description</p>
+                    <p v-else class="text-slate-600 text-sm mb-4 italic">
+                        No description
+                    </p>
 
                     <!-- Footer -->
                     <div class="flex items-center justify-between pt-3 border-t border-slate-800">
                         <div class="flex items-center gap-1.5 text-slate-500 text-xs">
                             <MessageSquare class="w-3.5 h-3.5" />
-                            <span>{{ project.chats_count }} chat{{ project.chats_count !== 1 ? 's' : '' }}</span>
+                            <span>
+                                {{ project.chats_count }}
+                                chat{{ project.chats_count !== 1 ? 's' : '' }}
+                            </span>
                         </div>
-                        
+                        <a
                             :href="route('projects.show', project.id)"
                             class="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs font-medium transition-colors"
                         >
@@ -121,6 +129,7 @@ function deleteProject(project) {
                     </div>
                 </div>
             </div>
+
         </div>
 
         <!-- New Project Modal -->
@@ -131,17 +140,23 @@ function deleteProject(project) {
                 @click.self="showModal = false"
             >
                 <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6">
+
+                    <!-- Modal header -->
                     <div class="flex items-center justify-between mb-6">
                         <div class="flex items-center gap-2">
                             <FolderOpen class="w-5 h-5 text-indigo-400" />
                             <h2 class="text-lg font-semibold text-white">New Project</h2>
                         </div>
-                        <button @click="showModal = false" class="text-slate-500 hover:text-slate-300">
+                        <button
+                            @click="showModal = false"
+                            class="text-slate-500 hover:text-slate-300 transition-colors"
+                        >
                             <X class="w-5 h-5" />
                         </button>
                     </div>
 
                     <form @submit.prevent="submit" class="space-y-4">
+
                         <!-- Name -->
                         <div>
                             <label class="block text-sm font-medium text-slate-300 mb-1.5">
@@ -151,15 +166,19 @@ function deleteProject(project) {
                                 v-model="form.name"
                                 type="text"
                                 placeholder="e.g. Customer Support Bot"
-                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm"
                                 autofocus
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm"
                             />
-                            <p v-if="form.errors.name" class="text-red-400 text-xs mt-1">{{ form.errors.name }}</p>
+                            <p v-if="form.errors.name" class="text-red-400 text-xs mt-1">
+                                {{ form.errors.name }}
+                            </p>
                         </div>
 
                         <!-- Description -->
                         <div>
-                            <label class="block text-sm font-medium text-slate-300 mb-1.5">Description</label>
+                            <label class="block text-sm font-medium text-slate-300 mb-1.5">
+                                Description
+                            </label>
                             <textarea
                                 v-model="form.description"
                                 rows="3"
@@ -171,14 +190,22 @@ function deleteProject(project) {
                         <!-- Model -->
                         <div>
                             <label class="block text-sm font-medium text-slate-300 mb-1.5">
-                                <Bot class="w-3.5 h-3.5 inline mr-1 text-slate-400" />
-                                AI Model
+                                <div class="flex items-center gap-1.5">
+                                    <Bot class="w-3.5 h-3.5 text-slate-400" />
+                                    AI Model
+                                </div>
                             </label>
                             <select
                                 v-model="form.model"
                                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 text-sm"
                             >
-                                <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
+                                <option
+                                    v-for="m in models"
+                                    :key="m"
+                                    :value="m"
+                                >
+                                    {{ m }}
+                                </option>
                             </select>
                         </div>
 
@@ -200,6 +227,7 @@ function deleteProject(project) {
                                 {{ form.processing ? 'Creating...' : 'Create Project' }}
                             </button>
                         </div>
+
                     </form>
                 </div>
             </div>
