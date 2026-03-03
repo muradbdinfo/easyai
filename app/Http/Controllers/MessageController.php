@@ -6,13 +6,13 @@ use App\Jobs\SendMessageJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\Project;
+use App\Services\QuotaService;
 use Illuminate\Http\Request;
 
 class MessageController extends Controller
 {
-    /**
-     * Store a new user message and dispatch AI job.
-     */
+    public function __construct(private QuotaService $quota) {}
+
     public function store(Request $request, Project $project, Chat $chat)
     {
         $tenant = app('tenant');
@@ -25,10 +25,11 @@ class MessageController extends Controller
             return back()->withErrors(['message' => 'This chat is closed.']);
         }
 
-        // Quota check
-        if ($tenant->token_quota > 0 && $tenant->tokens_used >= $tenant->token_quota) {
-            return back()->withErrors(['message' => 'Token quota exceeded. Please upgrade your plan.'])
-                         ->with('quota_exceeded', true);
+        // ── Quota check ───────────────────────────────────────────
+        if (!$this->quota->check($tenant)) {
+            return back()
+                ->withErrors(['message' => 'Token quota exceeded. Please upgrade your plan.'])
+                ->with('quota_exceeded', true);
         }
 
         $validated = $request->validate([
@@ -57,9 +58,6 @@ class MessageController extends Controller
         return back();
     }
 
-    /**
-     * Return last 50 messages for polling.
-     */
     public function index(Request $request, Project $project, Chat $chat)
     {
         $tenant = app('tenant');
@@ -77,7 +75,7 @@ class MessageController extends Controller
             'chat'     => [
                 'id'           => $chat->id,
                 'status'       => $chat->status,
-                'total_tokens' => $chat->total_tokens,
+                'total_tokens' => $chat->fresh()->total_tokens,
             ],
         ]);
     }

@@ -7,6 +7,8 @@ use App\Models\Message;
 use App\Models\Tenant;
 use App\Models\UsageLog;
 use App\Services\OllamaService;
+use App\Services\QuotaService;
+use App\Services\TokenCounterService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -27,8 +29,11 @@ class SendMessageJob implements ShouldQueue
         public int $userId,
     ) {}
 
-    public function handle(OllamaService $ollama): void
-    {
+ public function handle(
+        OllamaService      $ollama,
+        QuotaService       $quota,
+        TokenCounterService $counter,
+    ): void {
         // a) Load chat with project
         $chat = Chat::with('project')->find($this->chatId);
 
@@ -46,10 +51,8 @@ class SendMessageJob implements ShouldQueue
         }
 
         // c) Build message history
-        $contextLimit = config('ollama.context_limit', 6000);
-        $messages     = [];
+        $messages = [];
 
-        // Add system prompt if project has one
         if (!empty($chat->project->system_prompt)) {
             $messages[] = [
                 'role'    => 'system',
@@ -57,7 +60,6 @@ class SendMessageJob implements ShouldQueue
             ];
         }
 
-        // Add project memory / context summary
         if (!empty($chat->project->context_summary)) {
             $messages[] = [
                 'role'    => 'system',
@@ -65,7 +67,6 @@ class SendMessageJob implements ShouldQueue
             ];
         }
 
-        // Load last 20 user/assistant messages (ordered ASC)
         $history = Message::where('chat_id', $this->chatId)
             ->whereIn('role', ['user', 'assistant'])
             ->orderBy('created_at', 'asc')
@@ -85,7 +86,6 @@ class SendMessageJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error("SendMessageJob: Ollama error — {$e->getMessage()}");
 
-            // Save an error message so the UI doesn't stay in loading state
             Message::create([
                 'chat_id'   => $this->chatId,
                 'tenant_id' => $this->tenantId,
@@ -98,7 +98,7 @@ class SendMessageJob implements ShouldQueue
         }
 
         // e) Save assistant response
-        $assistantMessage = Message::create([
+        Message::create([
             'chat_id'   => $this->chatId,
             'tenant_id' => $this->tenantId,
             'role'      => 'assistant',
@@ -107,49 +107,51 @@ class SendMessageJob implements ShouldQueue
             'model'     => $chat->project->model ?? config('ollama.model'),
         ]);
 
-        // f) Calculate total tokens for this exchange
+        // f) Calculate total tokens — use TokenCounterService as fallback
         $totalTokens = $result['prompt_tokens'] + $result['completion_tokens'];
 
-        // Fallback: estimate if Ollama returned 0
         if ($totalTokens === 0) {
-            $lastUserMsg  = Message::where('chat_id', $this->chatId)
-                ->where('role', 'user')
-                ->latest()
-                ->skip(1) // skip the one just saved, get the one before assistant
-                ->first();
-            $totalTokens = $this->estimateTokens($result['content']);
-            if ($lastUserMsg) {
-                $totalTokens += $this->estimateTokens($lastUserMsg->content);
-            }
+            $totalTokens = $counter->estimateMessages($messages)
+                         + $counter->estimate($result['content']);
         }
 
-        // g) Update chat total_tokens
-        $chat->increment('total_tokens', $totalTokens);
+        try {
+            // g) Update chat total_tokens
+            $chat->increment('total_tokens', $totalTokens);
 
-        // h) Check quota and deduct from tenant
-        $tenant->increment('tokens_used', $totalTokens);
+            // h) Deduct from tenant via QuotaService
+            $quota->deduct($tenant, $totalTokens);
 
-        // i) Log usage
-        UsageLog::create([
-            'tenant_id'         => $this->tenantId,
-            'user_id'           => $this->userId,
-            'chat_id'           => $this->chatId,
-            'model'             => $chat->project->model ?? config('ollama.model'),
-            'prompt_tokens'     => $result['prompt_tokens'],
-            'completion_tokens' => $result['completion_tokens'],
-            'total_tokens'      => $totalTokens,
-            'cost'              => 0, // self-hosted = free
-            'created_at'        => now(),
-        ]);
+            // i) Log usage
+            UsageLog::create([
+                'tenant_id'         => $this->tenantId,
+                'user_id'           => $this->userId,
+                'chat_id'           => $this->chatId,
+                'model'             => $chat->project->model ?? config('ollama.model'),
+                'prompt_tokens'     => $result['prompt_tokens'],
+                'completion_tokens' => $result['completion_tokens'],
+                'total_tokens'      => $totalTokens,
+                'cost'              => 0.000000,
+                'created_at'        => now(),
+            ]);
 
-        // j) Close chat if tenant exceeded quota
-        if ($tenant->fresh()->tokens_used >= $tenant->token_quota && $tenant->token_quota > 0) {
-            $chat->update([
-                'status'        => 'closed',
-                'closed_reason' => 'Token quota exceeded.',
+            // j) Close chat if quota exceeded after this exchange
+            $tenant->refresh();
+            if ($quota->isExceeded($tenant)) {
+                $chat->update([
+                    'status'        => 'closed',
+                    'closed_reason' => 'Token quota exceeded.',
+                ]);
+            }
+
+        } catch (\Throwable $e) {
+            Log::error('SendMessageJob post-save error: ' . $e->getMessage(), [
+                'chat_id'   => $this->chatId,
+                'trace'     => $e->getTraceAsString(),
             ]);
         }
     }
+
 
     /**
      * Simple token estimator (~4 chars per token).
