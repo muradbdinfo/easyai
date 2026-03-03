@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Project;
 use App\Services\QuotaService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -17,22 +18,31 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        $quota = null;
+        $quota    = null;
+        $projects = [];
 
         if ($request->user() && $request->user()->tenant_id) {
-            $tenant = $request->user()->tenant;
+            $tenant       = $request->user()->tenant;
+            $quotaService = new QuotaService();
 
             if ($tenant) {
-                $qs = new QuotaService();
-
                 $quota = [
                     'used'       => $tenant->tokens_used,
                     'total'      => $tenant->token_quota,
-                    'remaining'  => $qs->remaining($tenant),
-                    'percent'    => $qs->percentUsed($tenant),
-                    'exceeded'   => $qs->isExceeded($tenant),
+                    'remaining'  => $quotaService->remaining($tenant),
+                    'percent'    => $quotaService->percentUsed($tenant),
+                    'exceeded'   => $quotaService->isExceeded($tenant),
                     'reset_date' => now()->startOfMonth()->addMonth()->toDateString(),
                 ];
+
+                // Load projects with recent chats for sidebar
+                $projects = Project::where('tenant_id', $tenant->id)
+                    ->with(['chats' => function ($q) {
+                        $q->orderBy('updated_at', 'desc')->take(5);
+                    }])
+                    ->orderBy('updated_at', 'desc')
+                    ->take(10)
+                    ->get(['id', 'name', 'model', 'updated_at']);
             }
         }
 
@@ -49,8 +59,9 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error'   => fn () => $request->session()->get('error'),
             ],
-            'quota'         => $quota,
-            'ollama_models' => config('ollama.available_models'),
+            'quota'          => $quota,
+            'sidebar_projects' => $projects,
+            'ollama_models'  => config('ollama.available_models'),
         ]);
     }
 }

@@ -1,34 +1,43 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
-    LayoutDashboard, FolderOpen, CreditCard,
-    BarChart2, LogOut, Menu, X, User, Bot
+    LayoutDashboard, FolderOpen, CreditCard, BarChart2,
+    LogOut, Menu, X, User, Bot
 } from 'lucide-vue-next'
+import TokenBar from '@/Components/TokenBar.vue'
+import UpgradeModal from '@/Components/UpgradeModal.vue'
+import Sidebar from '@/Components/Sidebar.vue'
 
-defineProps({
-    title: String,
-})
+defineProps({ title: String })
 
-const page = usePage()
-const auth = page.props.auth
+const page        = usePage()
+const auth        = computed(() => page.props.auth)
+const quota       = computed(() => page.props.quota)
 const sidebarOpen = ref(false)
+const showUpgrade = ref(false)
+
+const sidebarProjects = computed(() => page.props.sidebar_projects ?? [])
 
 function logout() {
     router.post(route('logout'))
+}
+
+function isActive(path) {
+    return page.url.startsWith(path)
 }
 </script>
 
 <template>
     <div class="min-h-screen bg-slate-950 flex">
 
-        <!-- ── Sidebar ── -->
+        <!-- Sidebar -->
         <aside
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-            class="fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 md:translate-x-0 md:static md:flex"
+            class="fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 md:translate-x-0 md:static md:flex shrink-0"
         >
             <!-- Logo -->
-            <div class="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
+            <div class="flex items-center gap-3 px-5 py-5 border-b border-slate-800 shrink-0">
                 <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
                     <Bot class="w-5 h-5 text-white" />
                 </div>
@@ -40,12 +49,15 @@ function logout() {
                 </div>
             </div>
 
-            <!-- Nav -->
-            <nav class="flex-1 px-3 py-4 space-y-1">
+            <!-- Top nav links -->
+            <nav class="px-3 pt-4 pb-2 space-y-0.5 shrink-0">
                 <Link
                     :href="route('dashboard')"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm font-medium"
-                    :class="{ 'bg-slate-800 text-white': $page.url === '/dashboard' }"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/dashboard')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                    @click="sidebarOpen = false"
                 >
                     <LayoutDashboard class="w-4 h-4 shrink-0" />
                     Dashboard
@@ -53,43 +65,60 @@ function logout() {
 
                 <Link
                     :href="route('projects.index')"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm font-medium"
-                    :class="{ 'bg-slate-800 text-white': $page.url.startsWith('/projects') }"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/projects')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                    @click="sidebarOpen = false"
                 >
                     <FolderOpen class="w-4 h-4 shrink-0" />
                     Projects
                 </Link>
+            </nav>
 
-                <Link
+            <!-- Projects + Chats sidebar tree -->
+            <div class="flex-1 overflow-y-auto border-t border-slate-800/50 py-2">
+                <Sidebar :projects="sidebarProjects" />
+            </div>
+
+            <!-- Bottom nav -->
+            <nav class="px-3 py-2 border-t border-slate-800 space-y-0.5 shrink-0">
+                <a
                     href="/billing"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm font-medium"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/billing')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
                 >
                     <CreditCard class="w-4 h-4 shrink-0" />
                     Billing
-                </Link>
-
-                <Link
+                </a>
+                <a
                     href="/usage"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-sm font-medium"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/usage')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
                 >
                     <BarChart2 class="w-4 h-4 shrink-0" />
                     Usage
-                </Link>
+                </a>
             </nav>
 
+            <!-- Token Bar -->
+            <div class="border-t border-slate-800 shrink-0">
+                <TokenBar @upgrade="showUpgrade = true" />
+            </div>
+
             <!-- User + Logout -->
-            <div class="px-3 py-4 border-t border-slate-800">
+            <div class="px-3 py-3 border-t border-slate-800 shrink-0">
                 <div class="flex items-center gap-3 px-3 py-2 mb-1">
                     <div class="w-7 h-7 bg-slate-700 rounded-full flex items-center justify-center shrink-0">
                         <User class="w-4 h-4 text-slate-400" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-white text-xs font-medium truncate">
-                            {{ auth?.user?.name }}
-                        </p>
-                        <p class="text-slate-500 text-xs capitalize">
-                            {{ auth?.user?.role }}
-                        </p>
+                        <p class="text-white text-xs font-medium truncate">{{ auth?.user?.name }}</p>
+                        <p class="text-slate-500 text-xs capitalize">{{ auth?.user?.role }}</p>
                     </div>
                 </div>
                 <button
@@ -109,16 +138,19 @@ function logout() {
             @click="sidebarOpen = false"
         />
 
-        <!-- ── Main ── -->
+        <!-- Main -->
         <div class="flex-1 flex flex-col min-w-0">
 
-            <!-- Top bar (mobile only) -->
-            <header class="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+            <!-- Mobile top bar -->
+            <header class="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800 shrink-0">
                 <button @click="sidebarOpen = !sidebarOpen" class="text-slate-400 hover:text-white">
                     <Menu v-if="!sidebarOpen" class="w-5 h-5" />
                     <X v-else class="w-5 h-5" />
                 </button>
-                <span class="text-white font-semibold text-sm">{{ title ?? 'EasyAI' }}</span>
+                <div class="flex items-center gap-2">
+                    <Bot class="w-4 h-4 text-indigo-400" />
+                    <span class="text-white font-semibold text-sm">{{ title ?? 'EasyAI' }}</span>
+                </div>
                 <div class="w-5" />
             </header>
 
@@ -126,7 +158,10 @@ function logout() {
             <main class="flex-1 overflow-auto">
                 <slot />
             </main>
-
         </div>
+
+        <!-- Upgrade Modal -->
+        <UpgradeModal :show="showUpgrade" @close="showUpgrade = false" />
+
     </div>
 </template>
