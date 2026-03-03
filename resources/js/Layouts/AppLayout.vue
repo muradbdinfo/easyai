@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     LayoutDashboard, FolderOpen, CreditCard, BarChart2,
-    LogOut, Menu, X, User, Bot
+    LogOut, Menu, X, User, Bot, FileText
 } from 'lucide-vue-next'
 import TokenBar from '@/Components/TokenBar.vue'
 import UpgradeModal from '@/Components/UpgradeModal.vue'
@@ -73,6 +73,18 @@ function isActive(path) {
                 >
                     <FolderOpen class="w-4 h-4 shrink-0" />
                     Projects
+                </Link>
+
+                <Link
+                    :href="route('templates.index')"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/templates')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                    @click="sidebarOpen = false"
+                >
+                    <FileText class="w-4 h-4 shrink-0" />
+                    Templates
                 </Link>
             </nav>
 

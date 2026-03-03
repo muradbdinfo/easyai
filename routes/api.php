@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\Api\V1\ProjectController;
+use App\Http\Controllers\Api\V1\PromptTemplateController;
 use App\Http\Controllers\Api\V1\TenantController;
 use Illuminate\Support\Facades\Route;
 
@@ -14,7 +15,8 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
 
     // ── Protected ─────────────────────────────────────────────────
-    Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
+    Route::middleware(['auth:sanctum', \App\Http\Middleware\TenantMiddleware::class])
+        ->group(function () {
 
         // Auth
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -24,6 +26,12 @@ Route::prefix('v1')->group(function () {
         Route::get('tenant',       [TenantController::class, 'show']);
         Route::get('tenant/usage', [TenantController::class, 'usage']);
 
+        // Templates
+        Route::get('templates',                    [PromptTemplateController::class, 'index']);
+        Route::post('templates',                   [PromptTemplateController::class, 'store']);
+        Route::put('templates/{promptTemplate}',   [PromptTemplateController::class, 'update']);
+        Route::delete('templates/{promptTemplate}',[PromptTemplateController::class, 'destroy']);
+
         // Projects
         Route::apiResource('projects', ProjectController::class);
 
@@ -32,7 +40,6 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('chats', ChatController::class)->except(['update']);
             Route::post('chats/{chat}/close', [ChatController::class, 'close']);
 
-            // Messages
             Route::prefix('chats/{chat}')->group(function () {
                 Route::get('messages',        [MessageController::class, 'index']);
                 Route::post('messages',       [MessageController::class, 'store']);
@@ -41,5 +48,4 @@ Route::prefix('v1')->group(function () {
         });
 
     });
-
 });

@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\PromptTemplateController;
 use App\Models\UsageLog;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -42,9 +43,8 @@ Route::domain('easyai.local')->group(function () {
 
             // Chats (nested under project)
             Route::prefix('/projects/{project}/chats')->group(function () {
-
-                Route::post('/',      [ChatController::class, 'store'])  ->name('projects.chats.store');
-                Route::get('/{chat}', [ChatController::class, 'show'])   ->name('projects.chats.show');
+                Route::post('/',         [ChatController::class, 'store'])  ->name('projects.chats.store');
+                Route::get('/{chat}',    [ChatController::class, 'show'])   ->name('projects.chats.show');
                 Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('projects.chats.destroy');
 
                 // Messages (nested under chat)
@@ -53,6 +53,16 @@ Route::domain('easyai.local')->group(function () {
                     Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                 });
             });
+
+            // Templates
+            Route::get('/templates',
+                [PromptTemplateController::class, 'index'])->name('templates.index');
+            Route::post('/templates',
+                [PromptTemplateController::class, 'store'])->name('templates.store');
+            Route::put('/templates/{promptTemplate}',
+                [PromptTemplateController::class, 'update'])->name('templates.update');
+            Route::delete('/templates/{promptTemplate}',
+                [PromptTemplateController::class, 'destroy'])->name('templates.destroy');
 
             // Usage (MIS placeholder)
             Route::get('/usage', function () {
@@ -93,15 +103,12 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/tenants',
             [\App\Http\Controllers\Admin\TenantController::class, 'index'])
             ->name('admin.tenants.index');
-
         Route::get('/tenants/{tenant}',
             [\App\Http\Controllers\Admin\TenantController::class, 'show'])
             ->name('admin.tenants.show');
-
         Route::put('/tenants/{tenant}/plan',
             [\App\Http\Controllers\Admin\TenantController::class, 'updatePlan'])
             ->name('admin.tenants.plan');
-
         Route::put('/tenants/{tenant}/status',
             [\App\Http\Controllers\Admin\TenantController::class, 'updateStatus'])
             ->name('admin.tenants.status');
@@ -110,15 +117,12 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/plans',
             [\App\Http\Controllers\Admin\PlanController::class, 'index'])
             ->name('admin.plans.index');
-
         Route::post('/plans',
             [\App\Http\Controllers\Admin\PlanController::class, 'store'])
             ->name('admin.plans.store');
-
         Route::put('/plans/{plan}',
             [\App\Http\Controllers\Admin\PlanController::class, 'update'])
             ->name('admin.plans.update');
-
         Route::delete('/plans/{plan}',
             [\App\Http\Controllers\Admin\PlanController::class, 'destroy'])
             ->name('admin.plans.destroy');
@@ -127,7 +131,6 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/payments',
             [\App\Http\Controllers\Admin\PaymentController::class, 'index'])
             ->name('admin.payments.index');
-
         Route::put('/payments/{id}/approve',
             [\App\Http\Controllers\Admin\PaymentController::class, 'approveCod'])
             ->name('admin.payments.approve');

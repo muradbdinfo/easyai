@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Project;
+use App\Models\PromptTemplate;
 use App\Services\QuotaService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -18,14 +19,16 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        $quota    = null;
-        $projects = [];
+        $quota     = null;
+        $projects  = [];
+        $templates = [];
 
         if ($request->user() && $request->user()->tenant_id) {
             $tenant       = $request->user()->tenant;
             $quotaService = new QuotaService();
 
             if ($tenant) {
+                // Quota
                 $quota = [
                     'used'       => $tenant->tokens_used,
                     'total'      => $tenant->token_quota,
@@ -35,7 +38,7 @@ class HandleInertiaRequests extends Middleware
                     'reset_date' => now()->startOfMonth()->addMonth()->toDateString(),
                 ];
 
-                // Load projects with recent chats for sidebar
+                // Sidebar projects with recent chats
                 $projects = Project::where('tenant_id', $tenant->id)
                     ->with(['chats' => function ($q) {
                         $q->orderBy('updated_at', 'desc')->take(5);
@@ -43,6 +46,15 @@ class HandleInertiaRequests extends Middleware
                     ->orderBy('updated_at', 'desc')
                     ->take(10)
                     ->get(['id', 'name', 'model', 'updated_at']);
+
+                // Prompt templates for chat input picker
+                $templates = PromptTemplate::where('tenant_id', $tenant->id)
+                    ->where(function ($q) use ($request) {
+                        $q->where('user_id', $request->user()->id)
+                          ->orWhere('is_shared', true);
+                    })
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'content']);
             }
         }
 
@@ -59,9 +71,10 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error'   => fn () => $request->session()->get('error'),
             ],
-            'quota'          => $quota,
+            'quota'            => $quota,
             'sidebar_projects' => $projects,
-            'ollama_models'  => config('ollama.available_models'),
+            'templates'        => $templates,
+            'ollama_models'    => config('ollama.available_models'),
         ]);
     }
 }
