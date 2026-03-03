@@ -42,27 +42,15 @@ Route::domain('easyai.local')->group(function () {
 
             // Chats (nested under project)
             Route::prefix('/projects/{project}/chats')->group(function () {
-                Route::post('/',
-                    [ChatController::class, 'store'])
-                    ->name('projects.chats.store');
 
-                Route::get('/{chat}',
-                    [ChatController::class, 'show'])
-                    ->name('projects.chats.show');
-
-                Route::delete('/{chat}',
-                    [ChatController::class, 'destroy'])
-                    ->name('projects.chats.destroy');
+                Route::post('/',      [ChatController::class, 'store'])  ->name('projects.chats.store');
+                Route::get('/{chat}', [ChatController::class, 'show'])   ->name('projects.chats.show');
+                Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('projects.chats.destroy');
 
                 // Messages (nested under chat)
                 Route::prefix('/{chat}/messages')->group(function () {
-                    Route::post('/',
-                        [MessageController::class, 'store'])
-                        ->name('projects.chats.messages.store');
-
-                    Route::get('/',
-                        [MessageController::class, 'index'])
-                        ->name('projects.chats.messages.index');
+                    Route::post('/', [MessageController::class, 'store'])->name('projects.chats.messages.store');
+                    Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                 });
             });
 
@@ -96,8 +84,59 @@ Route::domain('admin.easyai.local')->group(function () {
 
     // ── Auth + Superadmin ──────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
-        Route::get('/', fn () => Inertia::render('Admin/Dashboard'))
+
+        Route::get('/',
+            [\App\Http\Controllers\Admin\DashboardController::class, 'index'])
             ->name('admin.dashboard');
+
+        // Tenants
+        Route::get('/tenants',
+            [\App\Http\Controllers\Admin\TenantController::class, 'index'])
+            ->name('admin.tenants.index');
+
+        Route::get('/tenants/{tenant}',
+            [\App\Http\Controllers\Admin\TenantController::class, 'show'])
+            ->name('admin.tenants.show');
+
+        Route::put('/tenants/{tenant}/plan',
+            [\App\Http\Controllers\Admin\TenantController::class, 'updatePlan'])
+            ->name('admin.tenants.plan');
+
+        Route::put('/tenants/{tenant}/status',
+            [\App\Http\Controllers\Admin\TenantController::class, 'updateStatus'])
+            ->name('admin.tenants.status');
+
+        // Plans
+        Route::get('/plans',
+            [\App\Http\Controllers\Admin\PlanController::class, 'index'])
+            ->name('admin.plans.index');
+
+        Route::post('/plans',
+            [\App\Http\Controllers\Admin\PlanController::class, 'store'])
+            ->name('admin.plans.store');
+
+        Route::put('/plans/{plan}',
+            [\App\Http\Controllers\Admin\PlanController::class, 'update'])
+            ->name('admin.plans.update');
+
+        Route::delete('/plans/{plan}',
+            [\App\Http\Controllers\Admin\PlanController::class, 'destroy'])
+            ->name('admin.plans.destroy');
+
+        // Payments
+        Route::get('/payments',
+            [\App\Http\Controllers\Admin\PaymentController::class, 'index'])
+            ->name('admin.payments.index');
+
+        Route::put('/payments/{id}/approve',
+            [\App\Http\Controllers\Admin\PaymentController::class, 'approveCod'])
+            ->name('admin.payments.approve');
+
+        // Usage
+        Route::get('/usage',
+            [\App\Http\Controllers\Admin\UsageController::class, 'index'])
+            ->name('admin.usage.index');
+
     });
 
 });

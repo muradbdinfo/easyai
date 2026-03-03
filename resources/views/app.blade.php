@@ -7,14 +7,8 @@
 
     <title inertia>{{ config('app.name', 'EasyAI') }}</title>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Scripts -->
     @routes
     @vite(['resources/js/app.js'])
     @inertiaHead

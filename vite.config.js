@@ -24,11 +24,17 @@ export default defineConfig({
             'ziggy-js': path.resolve(__dirname, 'vendor/tightenco/ziggy'),
         },
     },
-    server: {
-        host: '0.0.0.0',
-        port: 5173,
-        hmr: {
-            host: 'localhost',
-        },
+server: {
+    host: '0.0.0.0',
+    port: 5173,
+    hmr: {
+        host: 'localhost',
     },
+    cors: {
+        origin: [
+            'http://easyai.local',
+            'http://admin.easyai.local',
+        ],
+    },
+},
 });

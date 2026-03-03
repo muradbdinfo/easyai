@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ae7bd6c600bd758f1cda1d749b4c441f",
+    "content-hash": "37eb3142f52c49e335e58c6eef47a128",
     "packages": [
         {
             "name": "brick/math",
@@ -1121,62 +1121,6 @@
                 "source": "https://github.com/inertiajs/inertia-laravel/tree/v2.0.21"
             },
             "time": "2026-02-24T20:21:28+00:00"
-        },
-        {
-            "name": "karim007/sslcommerz-laravel",
-            "version": "v2.4",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/karim-007/sslcommerz-laravel.git",
-                "reference": "3faee028c32082387b86ee6ccc9e4c256e23d9d7"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/karim-007/sslcommerz-laravel/zipball/3faee028c32082387b86ee6ccc9e4c256e23d9d7",
-                "reference": "3faee028c32082387b86ee6ccc9e4c256e23d9d7",
-                "shasum": ""
-            },
-            "require": {
-                "ext-curl": "*"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "aliases": {
-                        "SslcommerzLaravel": "Karim007\\SslcommerzLaravel\\SslcommerzLaravel"
-                    },
-                    "providers": [
-                        "Karim007\\SslcommerzLaravel\\SslcommerzLaravelServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Karim007\\SslcommerzLaravel\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Md abdul karim",
-                    "email": "karim.cse007@gmail.com"
-                }
-            ],
-            "description": "SSLCommerz - Laravel Library",
-            "keywords": [
-                "Composer package for SSLCommerz payment",
-                "SSLCommerz laravel",
-                "SSLCommerz payment getway",
-                "sslcommerz"
-            ],
-            "support": {
-                "issues": "https://github.com/karim-007/sslcommerz-laravel/issues",
-                "source": "https://github.com/karim-007/sslcommerz-laravel/tree/v2.4"
-            },
-            "time": "2025-08-30T17:20:17+00:00"
         },
         {
             "name": "laravel/cashier",
