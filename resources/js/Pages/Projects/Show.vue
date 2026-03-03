@@ -33,13 +33,13 @@ function saveSettings() {
 
 // ── New chat ───────────────────────────────────────────────────────
 function createChat() {
-    router.post(route('chats.store', props.project.id), {})
+    router.post(route('projects.chats.store', props.project.id), {})
 }
 
 // ── Delete chat ────────────────────────────────────────────────────
 function deleteChat(chat) {
     if (!confirm('Delete this chat?')) return
-    router.delete(route('chats.destroy', [props.project.id, chat.id]))
+   router.delete(route('projects.chats.destroy', [props.project.id, chat.id]))
 }
 
 function formatTime(date) {
@@ -151,7 +151,7 @@ function formatTime(date) {
                                 <Trash2 class="w-4 h-4" />
                             </button>
                             
-                                :href="route('chats.show', [project.id, chat.id])"
+                               :href="route('projects.chats.show', [project.id, chat.id])"
                                 class="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                             >
                                 Open
