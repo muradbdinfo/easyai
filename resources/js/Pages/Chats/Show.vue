@@ -5,7 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import {
     Bot, User, Send, ChevronRight, AlertCircle,
     CheckCircle, FileText, Zap, FolderOpen,
-    Copy, X, Brain, Plus
+    Copy, X, Brain, Plus, Download
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -22,6 +22,7 @@ const sending       = ref(false)
 const messagesEnd   = ref(null)
 const textareaRef   = ref(null)
 const showTemplates = ref(false)
+const showExport    = ref(false)
 const copied        = ref(null)
 
 let pollTimer = null
@@ -72,7 +73,6 @@ async function sendMessage() {
 
     sending.value = true
 
-    // Optimistic UI
     messages.value.push({
         id:         Date.now(),
         role:       'user',
@@ -144,6 +144,17 @@ function newChat() {
     router.post(route('projects.chats.store', props.project.id))
 }
 
+// ── Export ────────────────────────────────────────────────────────
+function exportPdf() {
+    showExport.value = false
+    window.location.href = route('chats.export.pdf', [props.project.id, props.chat.id])
+}
+
+function exportMarkdown() {
+    showExport.value = false
+    window.location.href = route('chats.export.markdown', [props.project.id, props.chat.id])
+}
+
 // ── Format helpers ────────────────────────────────────────────────
 function formatTime(date) {
     return new Date(date).toLocaleTimeString('en-US', {
@@ -151,7 +162,6 @@ function formatTime(date) {
     })
 }
 
-// Scroll on mount
 onMounted(() => scrollToBottom())
 </script>
 
@@ -182,10 +192,13 @@ onMounted(() => scrollToBottom())
                 </div>
 
                 <div class="flex items-center gap-2 shrink-0">
+                    <!-- Model badge -->
                     <div class="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1 rounded-full">
                         <Bot class="w-3.5 h-3.5 text-indigo-400" />
                         <span class="text-xs text-slate-300">{{ project.model }}</span>
                     </div>
+
+                    <!-- Status -->
                     <div class="flex items-center gap-1">
                         <CheckCircle v-if="chat.status === 'open'" class="w-3.5 h-3.5 text-green-400" />
                         <AlertCircle v-else class="w-3.5 h-3.5 text-slate-500" />
@@ -193,13 +206,51 @@ onMounted(() => scrollToBottom())
                             {{ chat.status }}
                         </span>
                     </div>
+
+                    <!-- Export dropdown -->
+                    <div class="relative">
+                        <button
+                            @click="showExport = !showExport"
+                            class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full text-xs transition-colors"
+                            title="Export chat"
+                        >
+                            <Download class="w-3.5 h-3.5" />
+                            <span class="hidden sm:block">Export</span>
+                        </button>
+
+                        <!-- Dropdown menu -->
+                        <div
+                            v-if="showExport"
+                            class="absolute right-0 top-8 z-20 bg-slate-800 border border-slate-700 rounded-xl shadow-xl w-44 py-1"
+                        >
+                            <button
+                                @click="exportPdf"
+                                class="w-full flex items-center gap-2.5 px-4 py-2.5 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors text-sm"
+                            >
+                                <FileText class="w-4 h-4 text-red-400" />
+                                Export PDF
+                            </button>
+                            <button
+                                @click="exportMarkdown"
+                                class="w-full flex items-center gap-2.5 px-4 py-2.5 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors text-sm"
+                            >
+                                <FileText class="w-4 h-4 text-blue-400" />
+                                Export Markdown
+                            </button>
+                        </div>
+
+                        <!-- Close dropdown when clicking outside -->
+                        <div
+                            v-if="showExport"
+                            class="fixed inset-0 z-10"
+                            @click="showExport = false"
+                        />
+                    </div>
                 </div>
             </div>
 
             <!-- ── Closed banners ── -->
             <div v-if="chat.status === 'closed'" class="shrink-0">
-
-                <!-- Memory saved notice -->
                 <div class="flex items-center gap-3 px-4 py-2 bg-purple-500/10 border-b border-purple-500/20">
                     <Brain class="w-4 h-4 text-purple-400 shrink-0" />
                     <p class="text-purple-300 text-sm flex-1">
@@ -213,8 +264,6 @@ onMounted(() => scrollToBottom())
                         New Chat
                     </button>
                 </div>
-
-                <!-- Closed reason banner -->
                 <div class="flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
                     <AlertCircle class="w-4 h-4 text-amber-400 shrink-0" />
                     <p class="text-amber-300 text-sm">
@@ -224,13 +273,11 @@ onMounted(() => scrollToBottom())
                         </span>
                     </p>
                 </div>
-
             </div>
 
             <!-- ── Messages ── -->
             <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
 
-                <!-- Empty state -->
                 <div
                     v-if="messages.length === 0"
                     class="flex flex-col items-center justify-center h-full text-center"
@@ -239,12 +286,9 @@ onMounted(() => scrollToBottom())
                         <Bot class="w-7 h-7 text-indigo-400" />
                     </div>
                     <p class="text-white font-semibold mb-1">Start a conversation</p>
-                    <p class="text-slate-500 text-sm">
-                        Ask anything about {{ project.name }}
-                    </p>
+                    <p class="text-slate-500 text-sm">Ask anything about {{ project.name }}</p>
                 </div>
 
-                <!-- Message bubbles -->
                 <div v-for="msg in messages" :key="msg.id">
 
                     <!-- User message -->
@@ -326,7 +370,6 @@ onMounted(() => scrollToBottom())
                 </div>
             </div>
 
-            <!-- ── No templates notice ── -->
             <div
                 v-else-if="showTemplates && templates.length === 0"
                 class="border-t border-slate-800 bg-slate-900 shrink-0"
@@ -358,20 +401,16 @@ onMounted(() => scrollToBottom())
                             'focus-within:border-slate-500': chat.status === 'open',
                         }"
                     >
-                        <!-- Templates button -->
                         <button
                             @click="showTemplates = !showTemplates"
                             :disabled="chat.status === 'closed'"
                             class="p-1.5 transition-colors shrink-0 mb-0.5"
-                            :class="showTemplates
-                                ? 'text-indigo-400'
-                                : 'text-slate-500 hover:text-indigo-400'"
+                            :class="showTemplates ? 'text-indigo-400' : 'text-slate-500 hover:text-indigo-400'"
                             title="Insert template"
                         >
                             <FileText class="w-4 h-4" />
                         </button>
 
-                        <!-- Textarea -->
                         <textarea
                             ref="textareaRef"
                             v-model="messageInput"
@@ -385,13 +424,11 @@ onMounted(() => scrollToBottom())
                             class="flex-1 bg-transparent text-white placeholder-slate-500 text-sm outline-none resize-none max-h-48 py-1"
                         />
 
-                        <!-- Char counter -->
                         <div class="flex items-center gap-1 text-slate-600 shrink-0 mb-0.5">
                             <Zap class="w-3 h-3" />
                             <span class="text-xs">{{ messageInput.length }}</span>
                         </div>
 
-                        <!-- Send button -->
                         <button
                             @click="sendMessage"
                             :disabled="!messageInput.trim() || sending || chat.status === 'closed'"
@@ -400,10 +437,7 @@ onMounted(() => scrollToBottom())
                             <Send class="w-4 h-4" />
                         </button>
                     </div>
-
-                    <p class="text-slate-700 text-xs text-center mt-1.5">
-                        Ctrl+Enter to send
-                    </p>
+                    <p class="text-slate-700 text-xs text-center mt-1.5">Ctrl+Enter to send</p>
                 </div>
             </div>
 

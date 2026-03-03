@@ -49,7 +49,7 @@ Route::delete('/projects/{project}/memory',
 Route::patch('/projects/{project}/memory',
     [\App\Http\Controllers\ProjectController::class, 'updateMemory'])
     ->name('projects.memory.update');
-    
+
 
             // Chats (nested under project)
             Route::prefix('/projects/{project}/chats')->group(function () {
@@ -73,6 +73,18 @@ Route::patch('/projects/{project}/memory',
                 [PromptTemplateController::class, 'update'])->name('templates.update');
             Route::delete('/templates/{promptTemplate}',
                 [PromptTemplateController::class, 'destroy'])->name('templates.destroy');
+
+
+                // Export
+Route::get('/projects/{project}/chats/{chat}/export/pdf',
+    [\App\Http\Controllers\ExportController::class, 'exportPdf'])
+    ->name('chats.export.pdf');
+
+Route::get('/projects/{project}/chats/{chat}/export/markdown',
+    [\App\Http\Controllers\ExportController::class, 'exportMarkdown'])
+    ->name('chats.export.markdown');
+
+    
 
             // Usage (MIS placeholder)
             Route::get('/usage', function () {

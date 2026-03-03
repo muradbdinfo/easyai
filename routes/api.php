@@ -32,6 +32,13 @@ Route::prefix('v1')->group(function () {
         Route::put('templates/{promptTemplate}',   [PromptTemplateController::class, 'update']);
         Route::delete('templates/{promptTemplate}',[PromptTemplateController::class, 'destroy']);
 
+        // Export
+Route::get('projects/{project}/chats/{chat}/export/pdf',
+    [\App\Http\Controllers\Api\V1\ExportController::class, 'exportPdf']);
+Route::get('projects/{project}/chats/{chat}/export/markdown',
+    [\App\Http\Controllers\Api\V1\ExportController::class, 'exportMarkdown']);
+    
+
         // Projects
         Route::apiResource('projects', ProjectController::class);
 
@@ -40,7 +47,7 @@ Route::delete('projects/{project}/memory',
     [\App\Http\Controllers\Api\V1\ProjectController::class, 'clearMemory']);
 Route::patch('projects/{project}/memory',
     [\App\Http\Controllers\Api\V1\ProjectController::class, 'updateMemory']);
-    
+
 
         // Chats + Messages (nested under projects)
         Route::prefix('projects/{project}')->group(function () {
