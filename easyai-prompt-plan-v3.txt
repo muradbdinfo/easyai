@@ -1,0 +1,1339 @@
+
+================================================================================
+  EASYAI PLATFORM — COMPLETE CLAUDE PROMPT PLAN v3.0
+  Laravel 10 | Vue 3 | Inertia.js | Lucide Icons | REST API | mPDF
+  Billing: COD + SSLCommerz + Stripe
+  Domains: easyai.local | pis.easyai.local
+================================================================================
+
+CHANGELOG v3.0:
+  + Lucide Icons added to ALL Vue components (admin + tenant layouts)
+  + Full REST API with Sanctum token auth (for mobile apps / external apps)
+  + API versioned: /api/v1/...
+  + API routes separate from web routes
+  + Admin panel uses Lucide icons throughout
+  + MIS dashboard placeholder (apps built later on top of API)
+  + README.md for GitHub added at end of this file
+
+
+================================================================================
+MASTER CONTEXT PROMPT
+(Paste at START of every new Claude session before any module prompt)
+================================================================================
+
+You are a senior Laravel developer helping me build "EasyAI" — a self-hosted
+multi-tenant AI workspace platform. Read everything carefully.
+
+PROJECT         : EasyAI
+LOCAL DOMAIN    : http://easyai.local
+ADMIN DOMAIN    : http://pis.easyai.local
+STACK           : Laravel 10, Vue 3, Inertia.js, Vite, MySQL, Redis, Ollama
+OS DEV          : Windows + XAMPP PHP 8.2
+AUTH WEB        : Laravel Sanctum (session, for Inertia SPA)
+AUTH API        : Laravel Sanctum (token, for mobile/external apps)
+QUEUE           : Redis + Laravel Horizon
+AI ENGINE       : Ollama port 11434, default model llama3
+PDF             : mPDF (mpdf/mpdf)
+ICONS           : Lucide (lucide-vue-next) — use in ALL Vue components
+PAYMENT         : COD + SSLCommerz + Stripe (laravel/cashier)
+GIT             : one module at a time, test, then push
+
+API RULES:
+  - All API routes under /api/v1/ prefix
+  - Sanctum token auth on all API routes
+  - API has its own controllers in app/Http/Controllers/Api/V1/
+  - API returns JSON only (no Inertia)
+  - API supports: auth, projects, chats, messages, usage, billing
+  - API designed for future mobile app consumption
+  - Every web feature must also have a matching API endpoint
+
+ICON RULES (Lucide):
+  - Import from lucide-vue-next in every Vue file that uses icons
+  - Use icons in: sidebar nav, buttons, cards, status badges, empty states
+  - Admin panel: use icons for all menu items and action buttons
+  - Tenant layout: use icons for sidebar, chat UI, token bar
+  - Never use emoji as UI icons (emoji only in AI responses)
+  - Common icons to use:
+      LayoutDashboard, FolderOpen, MessageSquare, Settings, Users,
+      CreditCard, BarChart2, LogOut, Plus, Trash2, Edit2, Copy,
+      Download, ChevronRight, ChevronDown, Menu, X, Send, Bot,
+      User, Zap, AlertCircle, CheckCircle, Clock, Search, Bell,
+      FileText, Shield, Globe, Key, RefreshCw, Eye, EyeOff
+
+CODING RULES:
+  - No guessing. Ask if unsure.
+  - Exact code only. No placeholders.
+  - Laravel 10 only. Not 11.
+  - Vue 3 Composition API (<script setup>) only.
+  - Tailwind CSS only for styling.
+  - All DB queries scoped to tenant_id from middleware, never from input.
+  - One module at a time. Do not jump ahead.
+  - If updating earlier file: state exact filename + line number.
+  - After each module: exact git commands.
+  - Testing order: migrate → tinker → UI → API (Postman) → push
+
+TABLE RELATIONSHIP MAP:
+  plans
+    └── tenants (plan_id → plans.id)
+          └── users (tenant_id → tenants.id)
+          └── projects (tenant_id → tenants.id)
+                └── chats (project_id→projects.id, tenant_id→tenants.id)
+                      └── messages (chat_id→chats.id, tenant_id→tenants.id)
+          └── usage_logs (tenant_id → tenants.id)
+          └── prompt_templates (tenant_id → tenants.id)
+          └── payments (tenant_id → tenants.id)
+          └── subscriptions (tenant_id → tenants.id)
+          └── personal_access_tokens (Sanctum — tokenable = User)
+
+ENV KEYS:
+  DB: easyai / root / (empty) / 127.0.0.1 / 3306
+  REDIS: 127.0.0.1:6379
+  OLLAMA_URL: http://127.0.0.1:11434
+  OLLAMA_MODEL: llama3
+  STRIPE_KEY / STRIPE_SECRET / STRIPE_WEBHOOK_SECRET
+  SSLCZ_STORE_ID / SSLCZ_STORE_PASSWD / SSLCZ_TESTMODE=true
+  COD_ENABLED=true
+  API_VERSION=v1
+
+PROJECT PATH: C:\xampp\htdocs\easyai
+
+Wait for module instruction.
+
+
+================================================================================
+PART A — XAMPP VIRTUAL HOST SETUP
+================================================================================
+
+---- STEP 1: httpd.conf ----
+File: C:\xampp\apache\conf\httpd.conf
+Uncomment: Include conf/extra/httpd-vhosts.conf
+
+---- STEP 2: httpd-vhosts.conf ----
+File: C:\xampp\apache\conf\extra\httpd-vhosts.conf
+Add:
+
+<VirtualHost *:80>
+    ServerName easyai.local
+    DocumentRoot "C:/xampp/htdocs/easyai/public"
+    <Directory "C:/xampp/htdocs/easyai/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog "C:/xampp/apache/logs/easyai-error.log"
+</VirtualHost>
+
+<VirtualHost *:80>
+    ServerName pis.easyai.local
+    DocumentRoot "C:/xampp/htdocs/easyai/public"
+    <Directory "C:/xampp/htdocs/easyai/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+    ErrorLog "C:/xampp/apache/logs/pis-error.log"
+</VirtualHost>
+
+---- STEP 3: hosts file ----
+File: C:\Windows\System32\drivers\etc\hosts (open as Administrator)
+Add:
+127.0.0.1    easyai.local
+127.0.0.1    pis.easyai.local
+
+---- STEP 4: Restart Apache in XAMPP ----
+Test: http://easyai.local and http://pis.easyai.local both load Laravel
+
+
+================================================================================
+PART B — MODULE PROMPTS
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 0 — PROJECT SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Build MODULE 0: Project Setup. One file/command at a time.
+
+1. Command: create Laravel 10 at C:\xampp\htdocs\easyai
+2. Composer packages:
+     laravel/sanctum
+     laravel/horizon
+     spatie/laravel-permission
+     inertiajs/inertia-laravel
+     tightenco/ziggy
+     mpdf/mpdf
+     sslcommerz/sslcommerz-laravel
+     laravel/cashier
+3. NPM packages:
+     vue@3
+     @inertiajs/vue3
+     @vitejs/plugin-vue
+     lucide-vue-next
+4. Complete vite.config.js (Vue 3 + Inertia + aliases)
+5. Complete resources/js/app.js (Vue 3 + Inertia boot + Ziggy)
+6. Complete .env (easyai.local, MySQL, Redis, Ollama, Stripe, SSLCommerz, COD)
+7. Complete resources/views/app.blade.php (Inertia root)
+8. config/ollama.php:
+     url, model, context_limit=6000
+9. config/sanctum.php: stateful = ['easyai.local','pis.easyai.local']
+10. Publish Sanctum, Horizon, Cashier, SSLCommerz configs
+11. Commands: key:generate, storage:link, vendor:publish
+12. Git: init, add, commit "initial: project setup", push
+
+Tinker test:
+  App::environment()           // 'local'
+  DB::connection()->getPdo()   // no error
+  config('ollama.url')         // 'http://127.0.0.1:11434'
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 1 — AUTH (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Module 0 done. Build MODULE 1: Auth (Web + API).
+
+Tables:
+  users: id, tenant_id(null FK), name, email, password,
+         role enum[superadmin,admin,member],
+         email_verified_at, remember_token, timestamps
+
+WEB AUTH tasks:
+1. Migration: create_users_table
+2. User model: fillable, casts, isSuperAdmin(), isAdmin(), isMember()
+   relationship: belongsTo Tenant (nullable)
+3. HandleInertiaRequests: share auth.user
+4. AuthController (web): showLogin, login, showRegister, register, logout
+5. Web routes (guest group, easyai.local domain):
+   GET/POST /login, GET/POST /register, POST /logout
+6. Pages/Auth/Login.vue:
+   - Lucide icons: Mail, Lock, LogIn
+   - Dark card, email + password fields, submit, link to register
+7. Pages/Auth/Register.vue:
+   - Lucide icons: User, Mail, Lock, UserPlus
+   - name, email, password, confirm fields
+8. Pages/Dashboard.vue: placeholder "Welcome to EasyAI"
+   - Lucide icon: LayoutDashboard in header
+
+API AUTH tasks:
+9. Api/V1/AuthController (app/Http/Controllers/Api/V1/AuthController.php):
+   - login(Request): validate, attempt, return Sanctum token + user
+   - register(Request): validate, create user, return token + user
+   - logout(Request): delete current token
+   - me(Request): return auth user with tenant + plan
+   All return JSON: {success, data, message}
+10. API routes (routes/api.php):
+    Route::prefix('v1')->group(function() {
+      Route::post('auth/login', ...)
+      Route::post('auth/register', ...)
+      Route::middleware('auth:sanctum')->group(function() {
+        Route::post('auth/logout', ...)
+        Route::get('auth/me', ...)
+      })
+    })
+
+Tinker test:
+  $u = User::create([name,email,password:bcrypt('p'),role:'member'])
+  $u->isMember()   // true
+  $u->createToken('test')->plainTextToken  // token string
+
+API test (curl or Postman):
+  POST http://easyai.local/api/v1/auth/login
+  Body: {email, password}
+  Expect: {success:true, data:{token, user}}
+
+git commit -m "module-1: auth web and api complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 2 — TENANT + PLANS + ROUTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Module 1 done. users table exists.
+Build MODULE 2: Tenants, Plans, Routing.
+
+Tables:
+  plans: id, name, monthly_token_limit(bigint), price(decimal 8,2),
+         features(JSON), is_active(bool default true), timestamps
+  tenants: id, name, slug(unique), plan_id(FK), token_quota(bigint),
+           tokens_used(bigint default 0),
+           status enum[active,suspended,trial] default trial,
+           trial_ends_at(nullable), timestamps
+  users update: add FK constraint tenant_id → tenants.id onDelete set null
+
+Tasks:
+1. Migration: create_plans_table
+2. Migration: create_tenants_table
+3. Migration: add_tenant_foreign_key_to_users
+4. Plan model: fillable, casts(features→array), hasMany Tenant
+5. Tenant model: fillable, casts, isActive(), isSuspended(),
+   tokensRemaining(), relationships: belongsTo Plan, hasMany User,
+   hasMany Project
+6. Update User model (line numbers): add belongsTo Tenant
+7. TenantMiddleware: load from auth user, bind app('tenant'),
+   abort 403 if suspended. Superadmin bypasses.
+8. SuperAdminMiddleware: role=superadmin AND host=pis.easyai.local
+9. Register both in Kernel.php routeMiddleware
+10. routes/web.php: split by domain (easyai.local / pis.easyai.local)
+11. Update AuthController@register (line numbers):
+    create tenant → assign Starter plan → link user
+12. PlanSeeder: Starter(500k,$29), Pro(2M,$79), Enterprise(10M,$199)
+13. DatabaseSeeder: call PlanSeeder
+
+API tasks:
+14. Api/V1/TenantController:
+    - show: return current tenant with plan + usage stats
+    - usage: return usage summary (tokens used, remaining, percent)
+15. API routes (v1, auth:sanctum middleware):
+    GET /api/v1/tenant          → show
+    GET /api/v1/tenant/usage    → usage
+
+Tinker:
+  Plan::all()->pluck('name')    // [Starter,Pro,Enterprise]
+  $t = Tenant::first()
+  $t->plan->name                // Starter
+  $t->tokensRemaining()         // 500000
+
+API test:
+  GET /api/v1/tenant
+  Header: Authorization: Bearer {token}
+  Expect: {success:true, data:{tenant with plan}}
+
+git commit -m "module-2: tenants and plans complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 3 — PROJECTS (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-2 done. Tables: plans, tenants, users.
+Build MODULE 3: Projects.
+
+Table:
+  projects: id, tenant_id(FK), user_id(FK), name(string),
+            description(text null), system_prompt(text null),
+            context_summary(longtext null),
+            model(string default 'llama3'), timestamps
+
+WEB tasks:
+1. Migration: create_projects_table
+2. Project model: fillable, relationships(Tenant,User,hasMany Chat)
+3. ProjectPolicy: viewAny/view/update/delete scoped to tenant
+4. ProjectController: index, store, show, update, destroy
+   All: scope to app('tenant')->id
+5. Routes (easyai.local, auth+tenant group):
+   Route::resource('projects', ProjectController::class)
+6. Pages/Projects/Index.vue:
+   - Lucide icons: FolderOpen (cards), Plus (new), Trash2 (delete),
+     ChevronRight (open), MessageSquare (chat count)
+   - Grid of project cards with name, description, chat count
+   - "New Project" modal
+   - Empty state with FolderOpen icon
+7. Pages/Projects/Show.vue:
+   - Tabs: Chats | Settings
+   - Lucide icons: MessageSquare (chats tab), Settings (settings tab),
+     Bot (AI persona), Zap (model)
+   - Settings tab: system_prompt textarea, model selector
+
+API tasks:
+8. Api/V1/ProjectController:
+   - index: paginated projects list
+   - store: create project
+   - show: project with chats count + last activity
+   - update: name, description, system_prompt, model
+   - destroy: delete with chats count warning
+   JSON response format: {success, data, message, meta(pagination)}
+9. API routes (v1, auth:sanctum, tenant middleware):
+   Route::apiResource('projects', Api\V1\ProjectController::class)
+
+Tinker:
+  $p = Project::create([tenant_id,user_id,name:'Test',model:'llama3'])
+  $p->tenant->name    // ok
+  $p->chats->count()  // 0
+
+API test:
+  GET  /api/v1/projects          → list
+  POST /api/v1/projects          → create
+  GET  /api/v1/projects/{id}     → show
+  PUT  /api/v1/projects/{id}     → update
+
+git commit -m "module-3: projects complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 4 — CHATS (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-3 done. Tables: plans,tenants,users,projects.
+Build MODULE 4: Chats.
+
+Table:
+  chats: id, project_id(FK), user_id(FK), tenant_id(FK),
+         title(string null default 'New Chat'),
+         total_tokens(int default 0),
+         status enum[open,closed] default open,
+         closed_reason(string null), timestamps
+
+WEB tasks:
+1. Migration: create_chats_table
+2. Chat model: fillable, casts, isOpen(), isClosed(),
+   relationships: belongsTo Project/User/Tenant, hasMany Message
+3. ChatController: index(per project), store, show, destroy
+   All scoped to tenant
+4. Routes nested: projects/{project}/chats
+5. Update Projects/Show.vue Chats tab (state line numbers):
+   - List chats with Lucide icons:
+     MessageSquare (chat item), Plus (new chat),
+     Trash2 (delete), Clock (timestamp), CheckCircle/AlertCircle (status)
+   - New Chat button → POST → redirect to chat
+6. Pages/Chats/Show.vue scaffold:
+   - Header with Lucide: ChevronRight (breadcrumb), Bot (model badge)
+   - Empty messages area with Bot icon + "Start a conversation"
+   - Input area (disabled for now):
+     Send icon (Send), Templates icon (FileText)
+   - Token display: Zap icon + "0 / {quota}"
+   - Closed banner: AlertCircle icon
+
+API tasks:
+7. Api/V1/ChatController:
+   - index: chats for a project (paginated)
+   - store: create chat
+   - show: chat with messages (paginated, last 50)
+   - destroy: delete chat
+   - close: manually close a chat
+8. API routes:
+   Route::prefix('projects/{project}')->group(function() {
+     Route::apiResource('chats', Api\V1\ChatController::class)
+     Route::post('chats/{chat}/close', ...)
+   })
+
+Tinker:
+  $c = Chat::create([project_id,user_id,tenant_id,title:'Test'])
+  $c->isOpen()          // true
+  $c->project->name     // ok
+  $c->messages->count() // 0
+
+API test:
+  POST /api/v1/projects/{id}/chats   → create chat
+  GET  /api/v1/projects/{id}/chats   → list chats
+
+git commit -m "module-4: chats complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 5 — MESSAGES + OLLAMA + QUEUE (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-4 done. Tables: plans,tenants,users,projects,chats.
+Build MODULE 5: Messages, Ollama, Queue.
+
+Tables:
+  messages: id, chat_id(FK), tenant_id(FK),
+            role enum[user,assistant,system],
+            content(longtext), tokens(int default 0),
+            model(string null), timestamps
+  usage_logs: id, tenant_id(FK), user_id(FK), chat_id(FK),
+              model(string), prompt_tokens(int),
+              completion_tokens(int), total_tokens(int),
+              cost(decimal 10,6), created_at
+
+Tasks:
+1. Migration: create_messages_table
+2. Migration: create_usage_logs_table
+3. Message model: fillable, relationships
+4. UsageLog model: fillable, relationships
+5. OllamaService (app/Services/OllamaService.php):
+   chat(array $messages, string $model): array
+   health(): bool
+   Timeout: 120s. Return: [content, prompt_tokens, completion_tokens]
+6. config/ollama.php: url, model, context_limit=6000
+7. SendMessageJob (app/Jobs/SendMessageJob.php):
+   Constructor: int $chatId, int $tenantId, int $userId
+   Handle steps a-i (load history, build context, call Ollama,
+   save response, update tokens, check limit, update tenant, log usage)
+8. MessageController (web):
+   store: quota check → save user msg → dispatch job → return Inertia back
+   index: return last 50 messages (for polling)
+9. Web routes: POST+GET /projects/{project}/chats/{chat}/messages
+10. Update Chats/Show.vue (state line numbers):
+    - Lucide: User (user bubble), Bot (assistant bubble),
+      Send (send button), RefreshCw (loading spinner),
+      Copy (copy button on hover), AlertCircle (error state)
+    - Display messages, poll every 3s, auto-scroll, Ctrl+Enter send
+    - Animated loading: Bot icon + pulsing dots
+
+API tasks:
+11. Api/V1/MessageController:
+    - index: paginated messages for a chat
+    - store: same as web but returns JSON
+      {success:true, data:{message_id, status:'processing'}}
+    - status: check if latest assistant message arrived
+      GET /chats/{chat}/messages/status
+      Returns: {has_response: bool, message: object|null}
+    - This allows mobile app to poll for response
+12. API routes:
+    POST /api/v1/projects/{project}/chats/{chat}/messages → store
+    GET  /api/v1/projects/{project}/chats/{chat}/messages → index
+    GET  /api/v1/projects/{project}/chats/{chat}/messages/status → status
+
+Tinker:
+  // Start queue: php artisan queue:work redis (separate terminal)
+  $chat = Chat::first()
+  Message::create([chat_id=>$chat->id,tenant_id=>$chat->tenant_id,
+    role:'user',content:'Hello',tokens:5])
+  SendMessageJob::dispatch($chat->id,$chat->tenant_id,$chat->user_id)
+  // Wait 15s then:
+  Message::where('chat_id',$chat->id)->pluck('role')
+  // ['user','assistant']
+
+API test:
+  POST /api/v1/projects/1/chats/1/messages
+  Body: {content: "Hello EasyAI"}
+  Header: Authorization: Bearer {token}
+  Expect: {success:true, data:{message_id, status:'processing'}}
+
+  GET /api/v1/projects/1/chats/1/messages/status
+  Expect: {has_response: true, message: {role:'assistant', content:'...'}}
+
+git commit -m "module-5: ollama and messages complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 6 — TOKEN + QUOTA (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-5 done. Ollama works. Messages save correctly.
+Build MODULE 6: Token Counting + Quota Enforcement.
+
+No new tables.
+
+Tasks:
+1. TokenCounterService: estimate(string):int, estimateMessages(array):int
+2. QuotaService: check(Tenant):bool, deduct(Tenant,int):void,
+   remaining(Tenant):int, percentUsed(Tenant):float
+3. Update MessageController@store (state line numbers):
+   inject QuotaService, check before saving, return 402 if exceeded
+4. Update SendMessageJob (state line numbers):
+   use TokenCounterService when Ollama returns 0
+5. ResetMonthlyQuotaJob: reset all active tenant tokens_used=0
+6. Kernel.php: schedule monthly reset on 1st at 00:00
+7. Update HandleInertiaRequests (state line numbers):
+   share quota: {used,total,remaining,percent,exceeded}
+8. Components/TokenBar.vue:
+   - Lucide: Zap icon before bar
+   - Progress bar: green/yellow/red
+   - "{used} / {total} tokens"
+9. Components/UpgradeModal.vue:
+   - Lucide: AlertCircle (warning), CreditCard (upgrade btn), X (close)
+   - Show when quota.exceeded
+
+API tasks:
+10. Update Api/V1/TenantController@usage (state line numbers):
+    return: {used, total, remaining, percent, exceeded, reset_date}
+11. Update Api/V1/MessageController@store (state line numbers):
+    if quota exceeded return:
+    {success:false, message:'quota_exceeded', data:{remaining:0}}
+    HTTP 402
+
+Tinker:
+  $qs = new QuotaService()
+  $t = Tenant::first()
+  $qs->check($t)            // true
+  $qs->percentUsed($t)      // e.g. 0.5
+  $t->update([tokens_used=>$t->token_quota])
+  $qs->check($t)            // false
+
+API test:
+  GET /api/v1/tenant/usage
+  Expect: {used,total,remaining,percent,exceeded,reset_date}
+
+git commit -m "module-6: quota enforcement complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 7 — TENANT LAYOUT + CHAT UI (Lucide Icons)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-6 done. Core logic works.
+Build MODULE 7: Tenant Layout + Full Chat UI with Lucide Icons.
+
+Design: Dark theme. Sidebar fixed left. Clean professional.
+Lucide icons used throughout. Tailwind only.
+
+Tasks (one file at a time):
+1. Layouts/AppLayout.vue:
+   - Import Lucide: Menu, X, LogOut, Bell, Settings, User
+   - Sidebar 260px dark bg slate-900
+   - Top: EasyAI logo text + tenant name
+   - Nav items with Lucide icons:
+     LayoutDashboard → /dashboard
+     FolderOpen → /projects
+     CreditCard → /billing
+     BarChart2 → /usage (MIS placeholder)
+   - Bottom: user name + role badge + LogOut button with LogOut icon
+   - Mobile: Menu icon toggle, X to close
+   - Main area: flex-1 scroll
+
+2. Components/Sidebar.vue:
+   - Import Lucide: FolderOpen, MessageSquare, Plus, ChevronDown,
+     ChevronRight, Trash2
+   - Projects list: FolderOpen icon + project name + ChevronDown/Right
+   - Collapse/expand per project
+   - Chat item: MessageSquare icon + chat title (truncated 30 chars)
+   - Active chat: highlighted bg
+   - "New Project": Plus icon button at top
+   - "New Chat": Plus icon on hover of project row
+   - Delete: Trash2 icon on hover (confirm before delete)
+
+3. Pages/Chats/Show.vue (full rewrite):
+   - Import Lucide: Bot, User, Send, Copy, RefreshCw, Download,
+     ChevronRight, AlertCircle, FileText, Zap, CheckCheck
+   - Header bar:
+     ChevronRight breadcrumb → project → chat title (editable)
+     Bot icon + model badge
+     StatusDot: CheckCircle(open) / AlertCircle(closed)
+     Download dropdown: FileText PDF | FileText MD
+   - Messages:
+     User: right, blue, User icon avatar
+     Assistant: left, slate, Bot icon avatar
+     Copy button (Copy icon) appears on hover
+     Timestamp below each bubble
+   - Loading: Bot icon + 3 pulsing dots
+   - Input area:
+     FileText icon button (templates)
+     Textarea auto-resize
+     Zap icon + char counter
+     Send button with Send icon (disabled when empty)
+     Ctrl+Enter shortcut label
+   - Closed overlay: AlertCircle + banner + "New Chat" button
+   - TokenBar component below header (Zap icon)
+
+4. Components/TokenBar.vue: Zap icon + progress bar + text
+5. Components/UpgradeModal.vue: AlertCircle + CreditCard icons
+6. Pages/Dashboard.vue:
+   - Import Lucide: FolderOpen, MessageSquare, Zap, TrendingUp,
+     Plus, ArrowRight
+   - Stat cards: total projects, total chats, tokens used, tokens remaining
+   - Each card has relevant Lucide icon
+   - Recent chats list (last 5) with MessageSquare icon
+   - Quick action: Plus icon "New Project" button
+   - MIS notice: BarChart2 icon + "Advanced analytics coming soon"
+
+7. Pages/Usage/Index.vue (MIS placeholder):
+   - Import Lucide: BarChart2, TrendingUp, Zap, Calendar, Download
+   - Header: BarChart2 icon + "Usage Analytics"
+   - Stat cards: this month tokens, messages, active projects
+   - Simple table: date | tokens | messages | model
+   - "Advanced MIS dashboard coming soon" notice
+   - CSV export button with Download icon
+
+One file at a time. All Lucide imports explicit at top of each file.
+git commit -m "module-7: tenant layout and chat ui complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 8 — ADMIN PANEL + ADMIN LAYOUT (pis.easyai.local + Lucide)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-7 done. Tenant app UI polished.
+Build MODULE 8: Admin Panel at pis.easyai.local with Lucide icons.
+
+Only superadmin (role=superadmin) can access. Domain: pis.easyai.local only.
+Light/white theme for admin (opposite of tenant dark theme).
+
+Tasks (one file at a time):
+1. Layouts/AdminLayout.vue:
+   Import Lucide: LayoutDashboard, Users, CreditCard, BarChart2,
+   Settings, Shield, Globe, LogOut, Menu, X, Bell, ChevronRight,
+   Activity, Zap, Package
+   - White/slate-50 background
+   - Sidebar slate-800 with white text
+   - Nav items with Lucide icons:
+     LayoutDashboard → /admin
+     Users → /admin/tenants
+     Package → /admin/plans
+     CreditCard → /admin/payments
+     BarChart2 → /admin/usage
+     Settings → /admin/settings
+   - Header: Shield icon + "EasyAI Admin" + Bell icon + user name
+   - Sidebar bottom: LogOut button
+
+2. Admin controllers (app/Http/Controllers/Admin/):
+   DashboardController@index: stats
+   TenantController: index,show,updatePlan,updateStatus
+   PlanController: index,store,update,destroy
+   PaymentController: index,approveCod
+   UsageController: index,summary
+
+3. Admin routes in routes/web.php (pis.easyai.local domain):
+   Route::domain('pis.easyai.local')
+     ->middleware(['auth','superadmin'])
+     ->group(function() {
+       GET  /          → Admin\DashboardController@index
+       resource /tenants → Admin\TenantController (index,show,update)
+       PUT  /tenants/{tenant}/plan
+       PUT  /tenants/{tenant}/status
+       resource /plans → Admin\PlanController
+       GET  /payments → Admin\PaymentController@index
+       PUT  /payments/{payment}/approve → Admin\PaymentController@approveCod
+       GET  /usage → Admin\UsageController@index
+     })
+
+4. Pages/Admin/Dashboard.vue:
+   Import Lucide: Users, Activity, Zap, CreditCard, TrendingUp,
+   CheckCircle, AlertCircle, Clock
+   - 4 stat cards with icons:
+     Users → total tenants
+     Activity → active tenants
+     Zap → total tokens today
+     CreditCard → revenue this month
+   - Recent tenant signups table
+   - Recent payments table
+
+5. Pages/Admin/Tenants/Index.vue:
+   Import Lucide: Users, Search, Filter, Eye, Edit2,
+   CheckCircle, AlertCircle, Clock, ChevronRight
+   - Search box with Search icon
+   - Filter by status with Filter icon
+   - Table columns: Tenant, Plan, Usage%, Status, Actions
+   - Status badge: CheckCircle(active)/AlertCircle(suspended)/Clock(trial)
+   - Action: Eye icon (view), Edit2 icon (change plan/status)
+
+6. Pages/Admin/Tenants/Show.vue:
+   Import Lucide: Users, Zap, CreditCard, BarChart2,
+   CheckCircle, AlertCircle, Edit2, RefreshCw, MessageSquare
+   - Tenant info card with Edit2 icon
+   - Change plan dropdown + save button
+   - Suspend/Activate toggle: CheckCircle / AlertCircle icon
+   - Usage bar (Zap icon)
+   - Users table (Users icon)
+   - Payment history table (CreditCard icon)
+   - Usage last 30 days (BarChart2 placeholder)
+
+7. Pages/Admin/Plans/Index.vue:
+   Import Lucide: Package, Plus, Edit2, Trash2, CheckCircle, X
+   - Plans table: name, tokens/month, price, tenants count, status
+   - Create plan modal: Plus icon button
+   - Edit plan: Edit2 icon
+   - Toggle active: CheckCircle / X icon
+
+8. Pages/Admin/Payments/Index.vue:
+   Import Lucide: CreditCard, CheckCircle, Clock, AlertCircle,
+   Eye, Download, Filter
+   - Filter by method (COD/SSLCommerz/Stripe) and status
+   - Table: tenant, plan, amount, method, status, date, actions
+   - COD pending: Clock icon + "Approve" button with CheckCircle icon
+   - Download invoice: Download icon button
+
+9. Pages/Admin/Usage/Index.vue:
+   Import Lucide: BarChart2, Zap, Calendar, Download, Filter, TrendingUp
+   - Usage logs table with filters
+   - Summary stats at top
+   - Export CSV: Download icon button
+
+10. SuperAdmin seeder:
+    User::create([name:'Super Admin',email:'admin@easyai.local',
+    password:bcrypt('password'),role:'superadmin',tenant_id:null])
+
+Tinker:
+  $a = User::where('role','superadmin')->first()
+  $a->isSuperAdmin()   // true
+  $a->tenant           // null
+
+Browser test:
+  http://pis.easyai.local → redirect to login
+  Login admin@easyai.local/password → admin dashboard
+  Regular user at pis.easyai.local → 403
+
+git commit -m "module-8: admin panel complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 9 — PERSONAS + TEMPLATES (Web + API)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-8 done. Admin panel works.
+Build MODULE 9: AI Personas + Prompt Templates.
+
+Table:
+  prompt_templates: id, tenant_id(FK), user_id(FK), name(string),
+                    content(text), is_shared(bool default false), timestamps
+
+WEB tasks:
+1. Migration: create_prompt_templates_table
+2. PromptTemplate model: fillable, casts(is_shared→bool), relationships
+3. PromptTemplateController: index, store, update, destroy
+   scope to tenant
+4. Routes: Route::apiResource('templates', PromptTemplateController::class)
+   ->except(['show'])
+5. Update Projects/Show.vue Settings tab (state line numbers):
+   Import Lucide: Bot, Zap, Save, Info
+   - Bot icon + "AI Persona" label for system_prompt textarea
+   - Zap icon + model selector dropdown
+   - Save icon + save button
+6. Pages/Templates/Index.vue:
+   Import Lucide: FileText, Plus, Trash2, Copy, Globe, Lock,
+   Edit2, CheckCircle
+   - "My Templates" section + "Shared Templates" section
+   - FileText icon per template item
+   - Globe icon = shared, Lock icon = private (toggle)
+   - Copy icon (copies content to clipboard)
+   - Plus icon + create modal
+   - Edit2 to edit, Trash2 to delete
+7. Update Chats/Show.vue input area (state line numbers):
+   - FileText icon button → slide-up template panel
+   - Template item click → insert into textarea
+
+API tasks:
+8. Api/V1/PromptTemplateController:
+   index: own + shared templates
+   store, update, destroy
+9. API routes (v1, auth:sanctum, tenant):
+   Route::apiResource('templates', Api\V1\PromptTemplateController::class)
+   ->except(['show'])
+
+Tinker:
+  $t = PromptTemplate::create([tenant_id,user_id,name:'Laravel Expert',
+    content:'You are a Laravel expert.',is_shared:true])
+  $t->tenant->name   // ok
+  PromptTemplate::where('is_shared',true)->count()  // 1
+
+API test:
+  GET /api/v1/templates
+  POST /api/v1/templates  Body:{name,content,is_shared}
+
+git commit -m "module-9: personas and templates complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 10 — MEMORY SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-9 done. Tables all exist as per relationship map.
+Build MODULE 10: Memory System.
+
+No new tables. Service + job updates only.
+
+Tasks:
+1. MemoryService (app/Services/MemoryService.php):
+   buildContext(Chat $chat, Project $project): array
+   Returns Ollama messages array:
+   a) context_summary → {role:system, content:"Previous context: "+summary}
+   b) system_prompt → {role:system, content:prompt}
+   c) last 20 messages ordered ASC, role != system
+   d) return merged array
+
+2. Update SendMessageJob@handle (state line numbers):
+   replace inline history build with MemoryService::buildContext()
+
+3. SummarizeChatJob (app/Jobs/SummarizeChatJob.php):
+   Constructor: int $chatId
+   Handle:
+   a) load Chat with project+messages (role user/assistant, ordered ASC)
+   b) summarize prompt to Ollama
+   c) append to project.context_summary (with ---\n--- separator)
+   d) save project
+
+4. Update SendMessageJob step-g (state line numbers):
+   SummarizeChatJob::dispatch($chatId)
+
+5. Update Projects/Show.vue Settings tab (state line numbers):
+   Import Lucide: Brain, RefreshCw, Edit2, Trash2, Eye
+   - Brain icon + "Project Memory" section
+   - Read-only textarea showing context_summary
+   - Eye icon (toggle show/hide full memory)
+   - Edit2 icon → editable mode + Save
+   - Trash2 icon → Clear Memory (PATCH context_summary=null)
+
+6. Update Chats/Show.vue (state line numbers):
+   Import Lucide: Brain, Plus
+   When chat closed + summary saved:
+   - Brain icon + "Summary saved to project memory"
+   - Plus icon + "New Chat" button
+
+API tasks:
+7. Add to Api/V1/ProjectController@show (state line numbers):
+   include context_summary in response data
+8. Add API endpoint:
+   DELETE /api/v1/projects/{project}/memory → clear context_summary
+   PATCH  /api/v1/projects/{project}/memory → update context_summary
+
+Tinker:
+  $ms = new MemoryService()
+  $chat = Chat::with('project')->first()
+  $ctx = $ms->buildContext($chat,$chat->project)
+  count($ctx)          // messages count
+  $ctx[0]['role']      // 'system' if system_prompt exists
+
+  SummarizeChatJob::dispatch($chat->id)
+  // wait for queue, then:
+  $chat->project->fresh()->context_summary  // summary text
+
+git commit -m "module-10: memory system complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 11 — CHAT EXPORT (mPDF) + API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-10 done. mpdf/mpdf installed in Module 0.
+Build MODULE 11: Chat Export with mPDF.
+
+No new tables.
+
+Tasks:
+1. ExportController (app/Http/Controllers/ExportController.php):
+   exportPdf(Project $project, Chat $chat): mPDF download
+   exportMarkdown(Project $project, Chat $chat): .md download
+   Both: abort 403 if chat.tenant_id != app('tenant')->id
+
+2. resources/views/exports/chat-pdf.blade.php:
+   mPDF-compatible HTML (inline CSS only):
+   - Header: EasyAI | {project.name} | {chat.title} | {date}
+   - Per message: role label, timestamp, content, divider
+   - Footer: "EasyAI" + page number
+   Clean typography. Alternating bg for user/assistant.
+
+3. Markdown format:
+   # {chat.title}
+   **Project:** {name} | **Date:** {date} | **Model:** {model}
+   ---
+   **You** · {time}
+   {content}
+
+   **EasyAI** · {time}
+   {content}
+
+4. Routes (easyai.local auth+tenant):
+   GET /projects/{project}/chats/{chat}/export/pdf
+   GET /projects/{project}/chats/{chat}/export/markdown
+
+5. Update Chats/Show.vue export dropdown (state line numbers):
+   Import Lucide: Download, FileText
+   - Download icon on dropdown toggle
+   - FileText + "Export PDF" option
+   - FileText + "Export Markdown" option
+
+API tasks:
+6. Api/V1/ExportController:
+   exportPdf: same logic, return file download
+   exportMarkdown: same, return .md file
+7. API routes:
+   GET /api/v1/projects/{project}/chats/{chat}/export/pdf
+   GET /api/v1/projects/{chat}/chats/{chat}/export/markdown
+
+Browser test:
+  Visit export/pdf → PDF downloads with all messages
+  Visit export/markdown → .md file downloads
+
+git commit -m "module-11: chat export mpdf complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 12 — BILLING (COD + SSLCommerz + Stripe + mPDF Invoice)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Modules 1-11 done. cashier+sslcommerz+mpdf installed in Module 0.
+Build MODULE 12: Billing — COD + SSLCommerz + Stripe + mPDF invoices.
+
+Tables:
+  payments: id, tenant_id(FK), user_id(FK), plan_id(FK),
+            method enum[cod,sslcommerz,stripe],
+            amount(decimal 10,2), currency(string default BDT),
+            status enum[pending,completed,failed,refunded] default pending,
+            transaction_id(string null), gateway_response(JSON null),
+            invoice_number(string unique null), invoice_path(string null),
+            approved_by(FK users.id null), approved_at(timestamp null),
+            timestamps
+  subscriptions: id, tenant_id(FK), plan_id(FK), payment_id(FK null),
+                 starts_at(timestamp), ends_at(timestamp null),
+                 status enum[active,cancelled,expired] default active,
+                 timestamps
+
+Tasks (one file at a time):
+1. Migration: create_payments_table
+2. Migration: create_subscriptions_table
+3. Payment model: fillable, casts(gateway_response→array, approved_at→datetime)
+   relationships: Tenant, User, Plan, approvedBy(User)
+   generateInvoiceNumber(): 'INV-'.date('Y').'-'.str_pad($this->id,6,'0',STR_PAD_LEFT)
+4. Subscription model: fillable, casts, isActive(), relationships
+5. BillingService (app/Services/BillingService.php):
+   activatePlan(Tenant $tenant, Plan $plan, Payment $payment): void
+   a) tenant: plan_id, token_quota, status=active → save
+   b) create subscription (starts_at=now, ends_at=now+1month)
+   c) InvoiceService::generate($payment)
+   d) payment: status=completed, invoice_path → save
+6. InvoiceService (app/Services/InvoiceService.php):
+   generate(Payment $payment): string (file path)
+   Use mPDF:
+   - EasyAI header
+   - Invoice number + date
+   - Tenant info
+   - Plan details table
+   - Payment method + transaction ID
+   - Amount total (highlighted)
+   Save to storage/app/invoices/{invoice_number}.pdf
+7. BillingController:
+   index, selectPlan, processCod, processSslcommerz,
+   sslSuccess, sslFail, sslCancel,
+   processStripe, stripeSuccess, stripeWebhook,
+   downloadInvoice
+8. Routes (easyai.local auth+tenant):
+   GET  /billing
+   GET  /billing/plans
+   GET  /billing/plans/{plan}/select
+   POST /billing/cod/{plan}
+   POST /billing/sslcommerz/{plan}
+   GET  /billing/sslcommerz/success|fail|cancel
+   POST /billing/stripe/{plan}
+   GET  /billing/stripe/success
+   POST /stripe/webhook (no auth)
+   GET  /billing/invoice/{payment}
+
+9. Pages/Billing/Index.vue:
+   Import Lucide: CreditCard, Zap, Calendar, Download,
+   CheckCircle, Clock, AlertCircle, ArrowRight, Receipt
+   - Current plan card (CreditCard icon)
+   - Token usage bar (Zap icon)
+   - Payment history table (Receipt icon per row)
+   - Download invoice: Download icon button
+   - "Change Plan": ArrowRight icon
+
+10. Pages/Billing/Plans.vue:
+    Import Lucide: CheckCircle, Zap, Star, ArrowRight
+    - 3 plan cards, current plan has Star icon badge
+    - Feature list with CheckCircle icons
+    - "Select" button with ArrowRight
+
+11. Pages/Billing/SelectPayment.vue:
+    Import Lucide: Banknote, CreditCard, Globe
+    - Plan summary at top
+    - 3 payment method cards:
+      Banknote icon → COD "Pay Manually"
+      Globe icon → SSLCommerz "bKash / Nagad / Card (BD)"
+      CreditCard icon → Stripe "International Card"
+
+12. Admin\PaymentController: index, approveCod
+    Pages/Admin/Payments/Index.vue: already built in Module 8
+    Update to show Approve button for pending COD payments (CheckCircle icon)
+
+API tasks:
+13. Api/V1/BillingController:
+    plans: list all plans
+    currentPlan: current tenant plan + subscription
+    invoices: list tenant payment history
+    downloadInvoice: return PDF
+14. API routes (v1, auth:sanctum, tenant):
+    GET /api/v1/billing/plans
+    GET /api/v1/billing/current-plan
+    GET /api/v1/billing/invoices
+    GET /api/v1/billing/invoices/{payment}/download
+
+Tinker:
+  $tenant = Tenant::first()
+  $plan = Plan::where('name','Pro')->first()
+  $payment = Payment::create([tenant_id=>$tenant->id,user_id=>1,
+    plan_id=>$plan->id,method:'cod',amount=>79,currency:'BDT',
+    status:'pending',invoice_number:'INV-2026-000001'])
+  $bs = new BillingService()
+  $bs->activatePlan($tenant,$plan,$payment)
+  $tenant->fresh()->plan->name          // 'Pro'
+  $tenant->fresh()->status              // 'active'
+  Subscription::where('tenant_id',$tenant->id)->latest()->first()->isActive() // true
+  // Check: storage/app/invoices/INV-2026-000001.pdf exists
+
+API test:
+  GET /api/v1/billing/plans        → list plans
+  GET /api/v1/billing/current-plan → current subscription info
+
+git commit -m "module-12: billing complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE 13 — TENANT TESTING + HARDENING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+All modules 1-12 done. Build MODULE 13: Testing + Hardening.
+
+Tasks:
+1. Complete DatabaseSeeder calling:
+   PlanSeeder → SuperAdminSeeder → TenantSeeder →
+   ProjectSeeder → ChatSeeder → MessageSeeder → PromptTemplateSeeder
+
+2. TenantSeeder: TenantA(Starter,active), TenantB(Pro,active),
+   TenantC(Enterprise,suspended). Each: 1 admin + 2 members.
+
+3. TenantIsolationTest (tests/Feature/TenantIsolationTest.php):
+   test_user_cannot_access_other_tenant_project
+   test_user_cannot_access_other_tenant_chat
+   test_quota_exceeded_blocks_message_web
+   test_quota_exceeded_blocks_message_api
+   test_suspended_tenant_cannot_send_message
+   test_superadmin_can_access_admin_panel
+   test_regular_user_cannot_access_admin_panel
+   test_api_token_auth_works
+   test_api_returns_json_only
+
+4. ApiTest (tests/Feature/ApiTest.php):
+   test_auth_login_returns_token
+   test_auth_me_returns_user_with_tenant
+   test_projects_api_scoped_to_tenant
+   test_messages_api_dispatches_job
+   test_quota_exceeded_returns_402
+   test_billing_plans_api_returns_plans
+
+5. Security hardening: review all controllers.
+   State any line numbers where tenant_id might be accepted from input.
+
+6. Manual test checklist (comment block):
+   # Isolation: login TenantA, try URL of TenantB project → 403
+   # Quota: set tokens_used near limit → send messages → blocked
+   # COD: submit COD request → admin approves → plan upgraded
+   # SSLCommerz: use sandbox → complete payment → plan upgraded
+   # Stripe: use test card 4242... → plan upgraded
+   # Invoice: download PDF → verify mPDF invoice correct
+   # API: Postman collection test all v1 endpoints
+   # Export: PDF + Markdown both download correctly
+   # Admin: suspend tenant → tenant gets 403
+
+7. Postman collection export (JSON format):
+   All /api/v1/ endpoints with example requests + expected responses.
+   Include Bearer token auth on all protected routes.
+
+git commit -m "module-13: tenant testing complete" && git push
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CPANEL DEPLOYMENT PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+All modules done. Deploy to cPanel.
+Domain: yourdomain.com | PHP 8.2 | MySQL yes | SSH yes
+Redis: NO → use database queue | Supervisor: NO → use cron
+Ollama: separate VPS at [OLLAMA_VPS_IP]:11434
+SSLCommerz: switch SSLCZ_TESTMODE=false
+Stripe: switch to live keys
+
+Tasks:
+1. PHP Selector: exact extensions to enable
+2. Create MySQL DB + user
+3. SSH: clone, composer install --no-dev, npm build
+4. .env for cPanel (database queue, file cache, Ollama VPS URL)
+5. Document root → /public
+6. Migrations + seed (plans + superadmin only)
+7. 2 cron jobs (queue every minute + scheduler every minute)
+8. Storage permissions + storage:link
+9. php artisan optimize
+10. Ollama VPS: allow only cPanel server IP on port 11434
+11. Test checklist (web + API endpoints)
+
+Exact commands only.
+---
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VPS DEPLOYMENT PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROMPT:
+---
+[PASTE MASTER CONTEXT PROMPT]
+
+Migrating from cPanel to VPS production.
+OS: Ubuntu 22.04 LTS | Laravel VPS: 8GB RAM | Ollama VPS: 16GB RAM
+Domain: yourdomain.com
+
+Tasks:
+1. Server hardening: deploy user, UFW, SSH key
+2. PHP 8.2 + extensions
+3. MySQL 8 + database + user
+4. Redis + password
+5. Nginx + Node 18 + Composer
+6. Clone + build
+7. Production .env (Redis queue, live payment keys, Ollama VPS)
+8. Nginx config (gzip, headers, PHP-FPM 8.2)
+9. SSL certbot
+10. Supervisor: 2 workers + Horizon
+11. Cron scheduler
+12. Ollama VPS: install, llama3, service, firewall allow only Laravel VPS
+13. deploy.sh: pull, build, migrate, cache, restart
+14. Test: web + api + payment + export + admin
+
+Ubuntu 22.04 exact commands only.
+---
+
+
+================================================================================
+PART C — API ENDPOINT REFERENCE
+================================================================================
+
+BASE URL: http://easyai.local/api/v1
+AUTH: Bearer token (from POST /auth/login)
+
+AUTH:
+  POST   /auth/login          public
+  POST   /auth/register       public
+  POST   /auth/logout         protected
+  GET    /auth/me             protected
+
+TENANT:
+  GET    /tenant              current tenant + plan
+  GET    /tenant/usage        token usage stats
+
+PROJECTS:
+  GET    /projects            list (paginated)
+  POST   /projects            create
+  GET    /projects/{id}       show
+  PUT    /projects/{id}       update
+  DELETE /projects/{id}       delete
+  DELETE /projects/{id}/memory  clear context summary
+  PATCH  /projects/{id}/memory  update context summary
+
+CHATS:
+  GET    /projects/{id}/chats          list
+  POST   /projects/{id}/chats          create
+  GET    /projects/{id}/chats/{id}     show with messages
+  DELETE /projects/{id}/chats/{id}     delete
+  POST   /projects/{id}/chats/{id}/close  close chat
+
+MESSAGES:
+  GET    /projects/{p}/chats/{c}/messages          list
+  POST   /projects/{p}/chats/{c}/messages          send (dispatches job)
+  GET    /projects/{p}/chats/{c}/messages/status   poll for response
+
+TEMPLATES:
+  GET    /templates           list own + shared
+  POST   /templates           create
+  PUT    /templates/{id}      update
+  DELETE /templates/{id}      delete
+
+EXPORTS:
+  GET    /projects/{p}/chats/{c}/export/pdf
+  GET    /projects/{p}/chats/{c}/export/markdown
+
+BILLING:
+  GET    /billing/plans               list plans
+  GET    /billing/current-plan        current subscription
+  GET    /billing/invoices            payment history
+  GET    /billing/invoices/{id}/download  PDF invoice
+
+ALL API RESPONSES FORMAT:
+  {
+    "success": true|false,
+    "message": "...",
+    "data": {...} | [...],
+    "meta": { "current_page", "total", "per_page" }  // on paginated
+  }
+
+
+================================================================================
+PART D — MODULE ORDER + GIT COMMITS
+================================================================================
+
+  M00  Setup            git commit -m "initial: project setup"
+  M01  Auth             git commit -m "module-1: auth web and api complete"
+  M02  Tenant+Plans     git commit -m "module-2: tenants and plans complete"
+  M03  Projects         git commit -m "module-3: projects complete"
+  M04  Chats            git commit -m "module-4: chats complete"
+  M05  Messages+Ollama  git commit -m "module-5: ollama and messages complete"
+  M06  Token+Quota      git commit -m "module-6: quota enforcement complete"
+  M07  Tenant UI        git commit -m "module-7: tenant layout and chat ui complete"
+  M08  Admin Panel      git commit -m "module-8: admin panel complete"
+  M09  Personas         git commit -m "module-9: personas and templates complete"
+  M10  Memory           git commit -m "module-10: memory system complete"
+  M11  Export           git commit -m "module-11: chat export mpdf complete"
+  M12  Billing          git commit -m "module-12: billing complete"
+  M13  Testing          git commit -m "module-13: tenant testing complete"
+  ---  cPanel           git commit -m "deploy: cpanel live"
+  ---  VPS              git commit -m "deploy: vps production"
+
+
+================================================================================
+QUICK REFERENCE
+================================================================================
+
+LOCAL URLS:
+  http://easyai.local               Tenant app
+  http://easyai.local/horizon       Queue monitor
+  http://pis.easyai.local           Admin panel
+  http://localhost/phpmyadmin       DB
+  http://127.0.0.1:11434            Ollama
+
+KEY COMMANDS:
+  php artisan queue:work redis      (separate terminal)
+  php artisan horizon               (queue dashboard)
+  php artisan migrate:fresh --seed  (reset DB)
+  npm run dev                       (Vite)
+  npm run build                     (production)
+
+MODULE DONE CHECKLIST:
+  [ ] Migration ran, phpMyAdmin confirms table
+  [ ] Tinker tests pass
+  [ ] Web UI works
+  [ ] API endpoint tested (Postman)
+  [ ] No errors in storage/logs/laravel.log
+  [ ] git push done
+
+
+================================================================================
+END OF CLAUDE PROMPT PLAN v3.0
+EasyAI — easyai.local + pis.easyai.local
+Icons: Lucide | PDF: mPDF | Billing: COD+SSLCommerz+Stripe | API: v1
+"Migrate → Tinker → UI → API → Push → Next."
+================================================================================
