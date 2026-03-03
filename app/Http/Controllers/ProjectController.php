@@ -91,4 +91,29 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')
             ->with('success', 'Project deleted.');
     }
+
+    public function clearMemory(Project $project)
+{
+    $tenant = app('tenant');
+    abort_if($project->tenant_id !== $tenant->id, 403);
+
+    $project->update(['context_summary' => null]);
+
+    return back()->with('success', 'Project memory cleared.');
+}
+
+public function updateMemory(Request $request, Project $project)
+{
+    $tenant = app('tenant');
+    abort_if($project->tenant_id !== $tenant->id, 403);
+
+    $request->validate([
+        'context_summary' => ['nullable', 'string', 'max:20000'],
+    ]);
+
+    $project->update(['context_summary' => $request->context_summary]);
+
+    return back()->with('success', 'Project memory updated.');
+}
+
 }

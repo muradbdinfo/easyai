@@ -35,6 +35,13 @@ Route::prefix('v1')->group(function () {
         // Projects
         Route::apiResource('projects', ProjectController::class);
 
+        // Project memory
+Route::delete('projects/{project}/memory',
+    [\App\Http\Controllers\Api\V1\ProjectController::class, 'clearMemory']);
+Route::patch('projects/{project}/memory',
+    [\App\Http\Controllers\Api\V1\ProjectController::class, 'updateMemory']);
+    
+
         // Chats + Messages (nested under projects)
         Route::prefix('projects/{project}')->group(function () {
             Route::apiResource('chats', ChatController::class)->except(['update']);

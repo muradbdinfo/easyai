@@ -113,4 +113,39 @@ class ProjectController extends Controller
             'data'    => null,
         ]);
     }
+
+
+    public function clearMemory(Request $request, Project $project): JsonResponse
+{
+    $tenant = app('tenant');
+    abort_if($project->tenant_id !== $tenant->id, 403);
+
+    $project->update(['context_summary' => null]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Project memory cleared.',
+        'data'    => null,
+    ]);
+}
+
+public function updateMemory(Request $request, Project $project): JsonResponse
+{
+    $tenant = app('tenant');
+    abort_if($project->tenant_id !== $tenant->id, 403);
+
+    $request->validate([
+        'context_summary' => ['nullable', 'string', 'max:20000'],
+    ]);
+
+    $project->update(['context_summary' => $request->context_summary]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Project memory updated.',
+        'data'    => $project->fresh(['id', 'name', 'context_summary']),
+    ]);
+}
+
+
 }

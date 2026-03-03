@@ -41,6 +41,16 @@ Route::domain('easyai.local')->group(function () {
             // Projects
             Route::resource('projects', ProjectController::class);
 
+            // Project memory
+Route::delete('/projects/{project}/memory',
+    [\App\Http\Controllers\ProjectController::class, 'clearMemory'])
+    ->name('projects.memory.clear');
+
+Route::patch('/projects/{project}/memory',
+    [\App\Http\Controllers\ProjectController::class, 'updateMemory'])
+    ->name('projects.memory.update');
+    
+
             // Chats (nested under project)
             Route::prefix('/projects/{project}/chats')->group(function () {
                 Route::post('/',         [ChatController::class, 'store'])  ->name('projects.chats.store');

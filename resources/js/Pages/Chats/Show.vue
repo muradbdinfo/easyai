@@ -5,7 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import {
     Bot, User, Send, ChevronRight, AlertCircle,
     CheckCircle, FileText, Zap, FolderOpen,
-    Copy, RefreshCw, Download, X
+    Copy, X, Brain, Plus
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -40,8 +40,8 @@ function startPolling() {
             const res = await axios.get(
                 route('projects.chats.messages.index', [props.project.id, props.chat.id])
             )
-            messages.value      = res.data.messages
-            props.chat.status   = res.data.chat.status
+            messages.value          = res.data.messages
+            props.chat.status       = res.data.chat.status
             props.chat.total_tokens = res.data.chat.total_tokens
 
             const last = messages.value[messages.value.length - 1]
@@ -139,18 +139,16 @@ function insertTemplate(template) {
     })
 }
 
+// ── New chat ──────────────────────────────────────────────────────
+function newChat() {
+    router.post(route('projects.chats.store', props.project.id))
+}
+
 // ── Format helpers ────────────────────────────────────────────────
 function formatTime(date) {
     return new Date(date).toLocaleTimeString('en-US', {
         hour: '2-digit', minute: '2-digit',
     })
-}
-
-function fmt(n) {
-    if (!n && n !== 0) return '0'
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-    if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K'
-    return String(n)
 }
 
 // Scroll on mount
@@ -164,13 +162,17 @@ onMounted(() => scrollToBottom())
             <!-- ── Header ── -->
             <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950 shrink-0">
                 <div class="flex items-center gap-2 text-sm text-slate-500 min-w-0">
-                    <Link :href="route('projects.index')"
-                          class="hover:text-slate-300 hidden sm:flex items-center gap-1 shrink-0">
+                    <Link
+                        :href="route('projects.index')"
+                        class="hover:text-slate-300 hidden sm:flex items-center gap-1 shrink-0"
+                    >
                         <FolderOpen class="w-3.5 h-3.5" />
                     </Link>
                     <ChevronRight class="w-3.5 h-3.5 hidden sm:block shrink-0" />
-                    <Link :href="route('projects.show', project.id)"
-                          class="hover:text-slate-300 truncate max-w-24 hidden sm:block">
+                    <Link
+                        :href="route('projects.show', project.id)"
+                        class="hover:text-slate-300 truncate max-w-24 hidden sm:block"
+                    >
                         {{ project.name }}
                     </Link>
                     <ChevronRight class="w-3.5 h-3.5 hidden sm:block shrink-0" />
@@ -187,29 +189,52 @@ onMounted(() => scrollToBottom())
                     <div class="flex items-center gap-1">
                         <CheckCircle v-if="chat.status === 'open'" class="w-3.5 h-3.5 text-green-400" />
                         <AlertCircle v-else class="w-3.5 h-3.5 text-slate-500" />
-                        <span class="text-xs text-slate-400 capitalize hidden sm:block">{{ chat.status }}</span>
+                        <span class="text-xs text-slate-400 capitalize hidden sm:block">
+                            {{ chat.status }}
+                        </span>
                     </div>
                 </div>
             </div>
 
-            <!-- ── Closed banner ── -->
-            <div v-if="chat.status === 'closed'"
-                 class="flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
-                <AlertCircle class="w-4 h-4 text-amber-400 shrink-0" />
-                <p class="text-amber-300 text-sm">
-                    This chat is closed.
-                    <span v-if="chat.closed_reason" class="text-amber-400/70 ml-1">
-                        {{ chat.closed_reason }}
-                    </span>
-                </p>
+            <!-- ── Closed banners ── -->
+            <div v-if="chat.status === 'closed'" class="shrink-0">
+
+                <!-- Memory saved notice -->
+                <div class="flex items-center gap-3 px-4 py-2 bg-purple-500/10 border-b border-purple-500/20">
+                    <Brain class="w-4 h-4 text-purple-400 shrink-0" />
+                    <p class="text-purple-300 text-sm flex-1">
+                        Summary saved to project memory.
+                    </p>
+                    <button
+                        @click="newChat"
+                        class="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1 rounded-full transition-colors shrink-0"
+                    >
+                        <Plus class="w-3.5 h-3.5" />
+                        New Chat
+                    </button>
+                </div>
+
+                <!-- Closed reason banner -->
+                <div class="flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
+                    <AlertCircle class="w-4 h-4 text-amber-400 shrink-0" />
+                    <p class="text-amber-300 text-sm">
+                        This chat is closed.
+                        <span v-if="chat.closed_reason" class="text-amber-400/70 ml-1">
+                            {{ chat.closed_reason }}
+                        </span>
+                    </p>
+                </div>
+
             </div>
 
             <!-- ── Messages ── -->
             <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
 
                 <!-- Empty state -->
-                <div v-if="messages.length === 0"
-                     class="flex flex-col items-center justify-center h-full text-center">
+                <div
+                    v-if="messages.length === 0"
+                    class="flex flex-col items-center justify-center h-full text-center"
+                >
                     <div class="w-14 h-14 bg-indigo-600/20 rounded-2xl flex items-center justify-center mb-4">
                         <Bot class="w-7 h-7 text-indigo-400" />
                     </div>
@@ -278,8 +303,10 @@ onMounted(() => scrollToBottom())
             </div>
 
             <!-- ── Template picker ── -->
-            <div v-if="showTemplates && templates.length > 0"
-                 class="border-t border-slate-800 bg-slate-900 max-h-48 overflow-y-auto shrink-0">
+            <div
+                v-if="showTemplates && templates.length > 0"
+                class="border-t border-slate-800 bg-slate-900 max-h-48 overflow-y-auto shrink-0"
+            >
                 <div class="flex items-center justify-between px-4 py-2 border-b border-slate-800">
                     <span class="text-slate-400 text-xs font-medium">Select a template</span>
                     <button @click="showTemplates = false" class="text-slate-500 hover:text-slate-300">
@@ -299,17 +326,46 @@ onMounted(() => scrollToBottom())
                 </div>
             </div>
 
+            <!-- ── No templates notice ── -->
+            <div
+                v-else-if="showTemplates && templates.length === 0"
+                class="border-t border-slate-800 bg-slate-900 shrink-0"
+            >
+                <div class="flex items-center justify-between px-4 py-2 border-b border-slate-800">
+                    <span class="text-slate-400 text-xs font-medium">No templates yet</span>
+                    <button @click="showTemplates = false" class="text-slate-500 hover:text-slate-300">
+                        <X class="w-4 h-4" />
+                    </button>
+                </div>
+                <div class="px-4 py-3 text-center">
+                    <p class="text-slate-500 text-xs">
+                        Create templates in the
+                        <Link :href="route('templates.index')" class="text-indigo-400 hover:text-indigo-300">
+                            Templates
+                        </Link>
+                        page.
+                    </p>
+                </div>
+            </div>
+
             <!-- ── Input area ── -->
             <div class="border-t border-slate-800 bg-slate-950 px-4 py-3 shrink-0">
                 <div class="max-w-4xl mx-auto">
-                    <div class="flex items-end gap-2 bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2"
-                         :class="{ 'border-slate-600': chat.status === 'closed', 'opacity-60': chat.status === 'closed' }">
-
+                    <div
+                        class="flex items-end gap-2 bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2 transition-colors"
+                        :class="{
+                            'border-slate-600 opacity-60': chat.status === 'closed',
+                            'focus-within:border-slate-500': chat.status === 'open',
+                        }"
+                    >
                         <!-- Templates button -->
                         <button
                             @click="showTemplates = !showTemplates"
                             :disabled="chat.status === 'closed'"
-                            class="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors shrink-0 mb-0.5"
+                            class="p-1.5 transition-colors shrink-0 mb-0.5"
+                            :class="showTemplates
+                                ? 'text-indigo-400'
+                                : 'text-slate-500 hover:text-indigo-400'"
                             title="Insert template"
                         >
                             <FileText class="w-4 h-4" />
@@ -322,12 +378,14 @@ onMounted(() => scrollToBottom())
                             @keydown="handleKeydown"
                             @input="resizeTextarea"
                             :disabled="sending || chat.status === 'closed'"
-                            :placeholder="chat.status === 'closed' ? 'Chat is closed.' : 'Message EasyAI... (Ctrl+Enter to send)'"
+                            :placeholder="chat.status === 'closed'
+                                ? 'Chat is closed. Start a new chat above.'
+                                : 'Message EasyAI... (Ctrl+Enter to send)'"
                             rows="1"
                             class="flex-1 bg-transparent text-white placeholder-slate-500 text-sm outline-none resize-none max-h-48 py-1"
                         />
 
-                        <!-- Token count -->
+                        <!-- Char counter -->
                         <div class="flex items-center gap-1 text-slate-600 shrink-0 mb-0.5">
                             <Zap class="w-3 h-3" />
                             <span class="text-xs">{{ messageInput.length }}</span>
@@ -342,6 +400,7 @@ onMounted(() => scrollToBottom())
                             <Send class="w-4 h-4" />
                         </button>
                     </div>
+
                     <p class="text-slate-700 text-xs text-center mt-1.5">
                         Ctrl+Enter to send
                     </p>

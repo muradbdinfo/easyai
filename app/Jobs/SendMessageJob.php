@@ -6,6 +6,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\Tenant;
 use App\Models\UsageLog;
+use App\Services\MemoryService;
 use App\Services\OllamaService;
 use App\Services\QuotaService;
 use App\Services\TokenCounterService;
@@ -29,10 +30,11 @@ class SendMessageJob implements ShouldQueue
         public int $userId,
     ) {}
 
- public function handle(
-        OllamaService      $ollama,
-        QuotaService       $quota,
+    public function handle(
+        OllamaService       $ollama,
+        QuotaService        $quota,
         TokenCounterService $counter,
+        MemoryService       $memory,
     ): void {
         // a) Load chat with project
         $chat = Chat::with('project')->find($this->chatId);
@@ -50,35 +52,8 @@ class SendMessageJob implements ShouldQueue
             return;
         }
 
-        // c) Build message history
-        $messages = [];
-
-        if (!empty($chat->project->system_prompt)) {
-            $messages[] = [
-                'role'    => 'system',
-                'content' => $chat->project->system_prompt,
-            ];
-        }
-
-        if (!empty($chat->project->context_summary)) {
-            $messages[] = [
-                'role'    => 'system',
-                'content' => 'Previous context summary: ' . $chat->project->context_summary,
-            ];
-        }
-
-        $history = Message::where('chat_id', $this->chatId)
-            ->whereIn('role', ['user', 'assistant'])
-            ->orderBy('created_at', 'asc')
-            ->take(20)
-            ->get();
-
-        foreach ($history as $msg) {
-            $messages[] = [
-                'role'    => $msg->role,
-                'content' => $msg->content,
-            ];
-        }
+        // c) Build context using MemoryService
+        $messages = $memory->buildContext($chat, $chat->project);
 
         // d) Call Ollama
         try {
@@ -119,7 +94,7 @@ class SendMessageJob implements ShouldQueue
             // g) Update chat total_tokens
             $chat->increment('total_tokens', $totalTokens);
 
-            // h) Deduct from tenant via QuotaService
+            // h) Deduct from tenant quota
             $quota->deduct($tenant, $totalTokens);
 
             // i) Log usage
@@ -144,20 +119,17 @@ class SendMessageJob implements ShouldQueue
                 ]);
             }
 
+            // k) Dispatch summarize job when chat has 20+ messages
+            $messageCount = Message::where('chat_id', $this->chatId)->count();
+            if ($messageCount >= 20 && $messageCount % 20 === 0) {
+                SummarizeChatJob::dispatch($this->chatId);
+            }
+
         } catch (\Throwable $e) {
             Log::error('SendMessageJob post-save error: ' . $e->getMessage(), [
-                'chat_id'   => $this->chatId,
-                'trace'     => $e->getTraceAsString(),
+                'chat_id' => $this->chatId,
+                'trace'   => $e->getTraceAsString(),
             ]);
         }
-    }
-
-
-    /**
-     * Simple token estimator (~4 chars per token).
-     */
-    private function estimateTokens(string $text): int
-    {
-        return (int) ceil(mb_strlen($text) / 4);
     }
 }
