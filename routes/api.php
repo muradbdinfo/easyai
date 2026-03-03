@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\TenantController;
+use App\Http\Controllers\Api\V1\ProjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -11,7 +12,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
 
     // ── Protected ─────────────────────────────────────────────────
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
         // Auth
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -21,6 +22,8 @@ Route::prefix('v1')->group(function () {
         Route::get('tenant', [TenantController::class, 'show']);
         Route::get('tenant/usage', [TenantController::class, 'usage']);
 
+        // Projects
+        Route::apiResource('projects', ProjectController::class);
     });
 
 });
