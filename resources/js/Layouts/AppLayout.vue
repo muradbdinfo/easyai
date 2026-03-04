@@ -8,6 +8,7 @@ import {
 import TokenBar from '@/Components/TokenBar.vue'
 import UpgradeModal from '@/Components/UpgradeModal.vue'
 import Sidebar from '@/Components/Sidebar.vue'
+import NotificationBell from '@/Components/NotificationBell.vue'
 
 defineProps({ title: String })
 
@@ -163,7 +164,7 @@ function isActive(path) {
                     <Bot class="w-4 h-4 text-indigo-400" />
                     <span class="text-white font-semibold text-sm">{{ title ?? 'EasyAI' }}</span>
                 </div>
-                <div class="w-5" />
+                <NotificationBell />
             </header>
 
             <!-- Page content -->

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\BillingService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -56,6 +57,12 @@ class PaymentController extends Controller
             $payment->plan,
             $payment
         );
+
+        // Trigger notifications
+        try {
+            $notif = new NotificationService();
+            $notif->paymentApproved($payment->tenant, $payment->plan->name, $payment->amount);
+        } catch (\Throwable) {}
 
         return back()->with('success', 'COD payment approved. Plan activated.');
     }

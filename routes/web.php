@@ -16,10 +16,12 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PromptTemplateController;
 use App\Models\UsageLog;
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\NotificationController;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +58,12 @@ Route::post('/reset-password',        [PasswordResetController::class, 'reset'])
 
             // Dashboard
           Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+
+          Route::get('/notifications',            [NotificationController::class, 'index'])->name('notifications.index');
+Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+
 
             // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);
