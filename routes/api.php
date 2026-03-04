@@ -37,8 +37,17 @@ Route::get('projects/{project}/chats/{chat}/export/pdf',
     [\App\Http\Controllers\Api\V1\ExportController::class, 'exportPdf']);
 Route::get('projects/{project}/chats/{chat}/export/markdown',
     [\App\Http\Controllers\Api\V1\ExportController::class, 'exportMarkdown']);
-    
 
+
+
+    // Billing
+Route::get('billing/plans',        [\App\Http\Controllers\Api\V1\BillingController::class, 'plans']);
+Route::get('billing/current-plan', [\App\Http\Controllers\Api\V1\BillingController::class, 'currentPlan']);
+Route::get('billing/invoices',     [\App\Http\Controllers\Api\V1\BillingController::class, 'invoices']);
+Route::get('billing/invoices/{payment}/download',
+    [\App\Http\Controllers\Api\V1\BillingController::class, 'downloadInvoice']);
+
+    
         // Projects
         Route::apiResource('projects', ProjectController::class);
 

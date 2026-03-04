@@ -3,63 +3,60 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Payment;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
+    public function __construct(private BillingService $billingService) {}
+
     public function index(Request $request)
     {
-        // payments table created in Module 12
         if (!Schema::hasTable('payments')) {
             return Inertia::render('Admin/Payments/Index', [
-                'payments' => [
-                    'data'          => [],
-                    'total'         => 0,
-                    'from'          => null,
-                    'to'            => null,
-                    'last_page'     => 1,
-                    'prev_page_url' => null,
-                    'next_page_url' => null,
-                ],
-                'filters' => [],
+                'payments' => [],
+                'filters'  => [],
             ]);
         }
 
-        $query = \DB::table('payments')
-            ->join('tenants', 'payments.tenant_id', '=', 'tenants.id')
-            ->join('plans',   'payments.plan_id',   '=', 'plans.id')
-            ->select('payments.*', 'tenants.name as tenant_name', 'plans.name as plan_name');
+        $query = Payment::with(['tenant', 'plan', 'user'])
+            ->latest();
 
         if ($request->filled('method')) {
-            $query->where('payments.method', $request->method);
+            $query->where('method', $request->method);
         }
 
         if ($request->filled('status')) {
-            $query->where('payments.status', $request->status);
+            $query->where('status', $request->status);
         }
 
-        $payments = $query->latest('payments.created_at')->paginate(25);
-
         return Inertia::render('Admin/Payments/Index', [
-            'payments' => $payments,
-            'filters'  => $request->only('method', 'status'),
+            'payments' => $query->paginate(20),
+            'filters'  => $request->only(['method', 'status']),
         ]);
     }
 
-    public function approveCod(Request $request, int $id)
+    public function approveCod(Request $request, $id)
     {
-        if (!Schema::hasTable('payments')) {
-            return back()->withErrors(['error' => 'Payments not available yet.']);
-        }
+        $payment = Payment::with(['tenant', 'plan'])->findOrFail($id);
 
-        \DB::table('payments')->where('id', $id)->update([
-            'status'      => 'completed',
+        abort_if($payment->method !== 'cod', 422, 'Not a COD payment.');
+        abort_if(!$payment->isPending(), 422, 'Payment already processed.');
+
+        $payment->update([
             'approved_by' => $request->user()->id,
             'approved_at' => now(),
         ]);
 
-        return back()->with('success', 'COD payment approved.');
+        $this->billingService->activatePlan(
+            $payment->tenant,
+            $payment->plan,
+            $payment
+        );
+
+        return back()->with('success', 'COD payment approved. Plan activated.');
     }
 }

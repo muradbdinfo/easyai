@@ -84,7 +84,57 @@ Route::get('/projects/{project}/chats/{chat}/export/markdown',
     [\App\Http\Controllers\ExportController::class, 'exportMarkdown'])
     ->name('chats.export.markdown');
 
-    
+
+    // Billing
+Route::get('/billing',
+    [\App\Http\Controllers\BillingController::class, 'index'])
+    ->name('billing.index');
+
+Route::get('/billing/plans',
+    [\App\Http\Controllers\BillingController::class, 'plans'])
+    ->name('billing.plans');
+
+Route::get('/billing/plans/{plan}/select',
+    [\App\Http\Controllers\BillingController::class, 'selectPlan'])
+    ->name('billing.select');
+
+Route::post('/billing/cod/{plan}',
+    [\App\Http\Controllers\BillingController::class, 'processCod'])
+    ->name('billing.cod');
+
+Route::post('/billing/sslcommerz/{plan}',
+    [\App\Http\Controllers\BillingController::class, 'processSslcommerz'])
+    ->name('billing.sslcommerz');
+
+Route::get('/billing/sslcommerz/success',
+    [\App\Http\Controllers\BillingController::class, 'sslSuccess'])
+    ->name('billing.sslcommerz.success');
+
+Route::get('/billing/sslcommerz/fail',
+    [\App\Http\Controllers\BillingController::class, 'sslFail'])
+    ->name('billing.sslcommerz.fail');
+
+Route::get('/billing/sslcommerz/cancel',
+    [\App\Http\Controllers\BillingController::class, 'sslCancel'])
+    ->name('billing.sslcommerz.cancel');
+
+Route::post('/billing/sslcommerz/ipn',
+    [\App\Http\Controllers\BillingController::class, 'sslIpn'])
+    ->name('billing.sslcommerz.ipn');
+
+Route::post('/billing/stripe/{plan}',
+    [\App\Http\Controllers\BillingController::class, 'processStripe'])
+    ->name('billing.stripe');
+
+Route::get('/billing/stripe/success',
+    [\App\Http\Controllers\BillingController::class, 'stripeSuccess'])
+    ->name('billing.stripe.success');
+
+Route::get('/billing/invoice/{payment}',
+    [\App\Http\Controllers\BillingController::class, 'downloadInvoice'])
+    ->name('billing.invoice.download');
+
+
 
             // Usage (MIS placeholder)
             Route::get('/usage', function () {
@@ -100,6 +150,14 @@ Route::get('/projects/{project}/chats/{chat}/export/markdown',
     });
 
 });
+
+
+
+Route::domain('easyai.local')->post(
+    '/stripe/webhook',
+    [\App\Http\Controllers\BillingController::class, 'stripeWebhook']
+)->name('stripe.webhook');
+
 
 /*
 |--------------------------------------------------------------------------
