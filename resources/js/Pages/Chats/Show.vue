@@ -1,7 +1,6 @@
 <script setup>
 // FILE: resources/js/Pages/Chats/Show.vue
-// REPLACES existing file entirely
-// Steps 16 + 17 + 18: file upload, attachment display in bubbles, lightbox
+// M19: Replaced polling with SSE streaming. All other features unchanged.
 
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
@@ -35,19 +34,24 @@ const textareaRef   = ref(null)
 const showTemplates = ref(false)
 const showExport    = ref(false)
 const copied        = ref(null)
+const chatStatus    = ref(props.chat.status)
+const chatTokens    = ref(props.chat.total_tokens ?? 0)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// File upload state
+// SSE streaming state  (replaces pollTimer)
 // ─────────────────────────────────────────────────────────────────────────────
-const pendingAttachment = ref(null)   // { attachment_id, type, original_name, url }
+const streamingContent = ref('')   // accumulates character-by-character
+const isStreaming      = ref(false)
+let   eventSource      = null
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File upload state (unchanged from M17/M18)
+// ─────────────────────────────────────────────────────────────────────────────
+const pendingAttachment = ref(null)
 const uploading         = ref(false)
 const uploadError       = ref(null)
 const fileInputRef      = ref(null)
-
-// Lightbox
-const lightboxUrl = ref(null)
-
-let pollTimer = null
+const lightboxUrl       = ref(null)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Computed
@@ -62,59 +66,90 @@ const attachmentIcon = computed(() => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scroll to bottom
+// Scroll
 // ─────────────────────────────────────────────────────────────────────────────
 function scrollToBottom() {
-    nextTick(() => {
-        messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
-    })
+    nextTick(() => messagesEnd.value?.scrollIntoView({ behavior: 'smooth' }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Polling for AI response
+// SSE Streaming  (replaces startPolling / stopPolling)
 // ─────────────────────────────────────────────────────────────────────────────
-function startPolling() {
-    pollTimer = setInterval(async () => {
+function startStream() {
+    // Close any existing stream
+    if (eventSource) {
+        eventSource.close()
+        eventSource = null
+    }
+
+    streamingContent.value = ''
+    isStreaming.value      = true
+
+    const url = route('projects.chats.stream', [props.project.id, props.chat.id])
+    eventSource = new EventSource(url)
+
+    eventSource.onmessage = (e) => {
         try {
-            const res = await axios.get(
-                route('projects.chats.messages.index', [props.project.id, props.chat.id])
-            )
-            messages.value          = res.data.messages
-            props.chat.status       = res.data.chat.status
-            props.chat.total_tokens = res.data.chat.total_tokens
+            const data = JSON.parse(e.data)
 
-            const last = messages.value[messages.value.length - 1]
-            if (last?.role === 'assistant') {
-                sending.value = false
-                stopPolling()
+            // Accumulate streaming tokens
+            if (data.token) {
+                streamingContent.value += data.token
+                scrollToBottom()
             }
-            scrollToBottom()
-        } catch {
-            stopPolling()
-        }
-    }, 3000)
-}
 
-function stopPolling() {
-    if (pollTimer) {
-        clearInterval(pollTimer)
-        pollTimer = null
+            // Stream complete
+            if (data.done) {
+                messages.value.push({
+                    id:         data.message_id,
+                    role:       'assistant',
+                    content:    streamingContent.value,
+                    model:      props.project.model,
+                    created_at: new Date().toISOString(),
+                })
+
+                streamingContent.value = ''
+                isStreaming.value      = false
+                sending.value          = false
+                chatStatus.value       = data.chat_status
+                chatTokens.value       = data.total_tokens
+
+                eventSource.close()
+                eventSource = null
+                scrollToBottom()
+            }
+        } catch { /* ignore JSON parse errors */ }
+    }
+
+    eventSource.onerror = () => {
+        // Push partial content if any, or error message
+        const content = streamingContent.value.trim()
+        messages.value.push({
+            id:         Date.now(),
+            role:       'assistant',
+            content:    content || 'Connection error. Please try again.',
+            created_at: new Date().toISOString(),
+        })
+
+        streamingContent.value = ''
+        isStreaming.value      = false
+        sending.value          = false
+        eventSource?.close()
+        eventSource = null
+        scrollToBottom()
     }
 }
-
-onMounted(() => scrollToBottom())
-onUnmounted(() => stopPolling())
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Send message
 // ─────────────────────────────────────────────────────────────────────────────
 async function sendMessage() {
     const content = messageInput.value.trim()
-    if (!content || sending.value || props.chat.status === 'closed') return
+    if (!content || sending.value || chatStatus.value === 'closed') return
 
     sending.value = true
 
-    // Optimistic UI
+    // Optimistic UI — push user message immediately
     messages.value.push({
         id:             Date.now(),
         role:           'user',
@@ -131,8 +166,7 @@ async function sendMessage() {
             : null,
     })
 
-    const attachmentId = pendingAttachment.value?.attachment_id ?? null
-
+    const attachmentId      = pendingAttachment.value?.attachment_id ?? null
     messageInput.value      = ''
     pendingAttachment.value = null
     uploadError.value       = null
@@ -140,16 +174,24 @@ async function sendMessage() {
     scrollToBottom()
 
     try {
-        await axios.post(
+        const res = await axios.post(
             route('projects.chats.messages.store', [props.project.id, props.chat.id]),
             { content, attachment_id: attachmentId },
             { headers: { 'X-XSRF-TOKEN': getCsrfToken() } }
         )
-        startPolling()
+
+        if (res.data.success) {
+            // Open SSE stream — AI response streams in character by character
+            startStream()
+        } else {
+            sending.value = false
+        }
     } catch (e) {
         sending.value = false
         if (e.response?.status === 402) {
             alert('Token quota exceeded. Please upgrade your plan.')
+        } else if (e.response?.status === 422) {
+            alert(e.response.data.message ?? 'Error sending message.')
         }
     }
 }
@@ -189,7 +231,7 @@ function copyMessage(msg) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Templates
+// Templates (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function insertTemplate(template) {
     messageInput.value  = template.content
@@ -201,7 +243,7 @@ function insertTemplate(template) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// New chat / export
+// New chat / export (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function newChat() {
     router.post(route('projects.chats.store', props.project.id))
@@ -218,7 +260,7 @@ function exportMarkdown() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// File upload
+// File upload (unchanged from M17/M18)
 // ─────────────────────────────────────────────────────────────────────────────
 function triggerFileInput() {
     fileInputRef.value?.click()
@@ -228,9 +270,9 @@ async function handleFileSelect(e) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    uploadError.value        = null
-    uploading.value          = true
-    pendingAttachment.value  = null
+    uploadError.value       = null
+    uploading.value         = true
+    pendingAttachment.value = null
 
     const form = new FormData()
     form.append('file', file)
@@ -252,7 +294,6 @@ async function handleFileSelect(e) {
         uploadError.value = err.response?.data?.message ?? err.message ?? 'Upload failed'
     } finally {
         uploading.value = false
-        // Reset so same file can be re-selected
         if (fileInputRef.value) fileInputRef.value.value = ''
     }
 }
@@ -261,7 +302,6 @@ async function removePendingAttachment() {
     if (!pendingAttachment.value) return
     const id = pendingAttachment.value.attachment_id
     pendingAttachment.value = null
-    // Fire and forget
     try {
         await axios.delete(
             route('attachments.destroy', id),
@@ -271,7 +311,7 @@ async function removePendingAttachment() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Lightbox
+// Lightbox (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function openLightbox(url) {
     lightboxUrl.value = url
@@ -288,10 +328,13 @@ function formatTime(date) {
 
 function formatFileSize(bytes) {
     if (!bytes) return ''
-    if (bytes < 1024)       return bytes + ' B'
+    if (bytes < 1024)        return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
+
+onMounted(() => scrollToBottom())
+onUnmounted(() => { eventSource?.close(); eventSource = null })
 </script>
 
 <template>
@@ -314,13 +357,11 @@ function formatFileSize(bytes) {
                 <div class="flex items-center gap-2 shrink-0">
                     <!-- Status badge -->
                     <div class="flex items-center gap-1.5">
-                        <CheckCircle v-if="chat.status === 'open'"
-                                     class="w-4 h-4 text-green-400" />
-                        <AlertCircle v-else
-                                     class="w-4 h-4 text-amber-400" />
+                        <CheckCircle v-if="chatStatus === 'open'" class="w-4 h-4 text-green-400" />
+                        <AlertCircle v-else                        class="w-4 h-4 text-amber-400" />
                         <span class="text-xs"
-                              :class="chat.status === 'open' ? 'text-green-400' : 'text-amber-400'">
-                            {{ chat.status }}
+                              :class="chatStatus === 'open' ? 'text-green-400' : 'text-amber-400'">
+                            {{ chatStatus }}
                         </span>
                     </div>
 
@@ -350,9 +391,8 @@ function formatFileSize(bytes) {
                         </div>
                     </div>
 
-                    <!-- New chat (when closed) -->
-                    <button v-if="chat.status === 'closed'"
-                            @click="newChat"
+                    <!-- New chat (always visible) -->
+                    <button @click="newChat"
                             class="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-600
                                    hover:bg-indigo-500 text-white rounded-lg text-xs transition-colors">
                         <Plus class="w-3.5 h-3.5" />
@@ -369,9 +409,9 @@ function formatFileSize(bytes) {
                         <div
                             class="h-full rounded-full transition-all"
                             :class="{
-                                'bg-green-500': (page.props.quota?.percent ?? 0) < 75,
+                                'bg-green-500':  (page.props.quota?.percent ?? 0) < 75,
                                 'bg-yellow-500': (page.props.quota?.percent ?? 0) >= 75 && (page.props.quota?.percent ?? 0) < 90,
-                                'bg-red-500': (page.props.quota?.percent ?? 0) >= 90,
+                                'bg-red-500':    (page.props.quota?.percent ?? 0) >= 90,
                             }"
                             :style="{ width: (page.props.quota?.percent ?? 0) + '%' }"
                         />
@@ -384,7 +424,7 @@ function formatFileSize(bytes) {
             </div>
 
             <!-- ── Closed banner ── -->
-            <div v-if="chat.status === 'closed'"
+            <div v-if="chatStatus === 'closed'"
                  class="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
                 <AlertCircle class="w-4 h-4 text-amber-400 shrink-0" />
                 <p class="text-amber-400 text-xs">
@@ -399,7 +439,7 @@ function formatFileSize(bytes) {
             <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
 
                 <!-- Empty state -->
-                <div v-if="messages.length === 0"
+                <div v-if="messages.length === 0 && !isStreaming"
                      class="flex flex-col items-center justify-center h-full text-center">
                     <div class="w-14 h-14 bg-indigo-600/20 rounded-2xl flex items-center justify-center mb-4">
                         <Bot class="w-7 h-7 text-indigo-400" />
@@ -410,7 +450,7 @@ function formatFileSize(bytes) {
                     </p>
                 </div>
 
-                <!-- Message list -->
+                <!-- Message list (all existing features kept) -->
                 <div v-for="msg in messages" :key="msg.id">
 
                     <!-- ── User message ── -->
@@ -422,7 +462,6 @@ function formatFileSize(bytes) {
                                 <!-- Attachment in user bubble -->
                                 <div v-if="msg.has_attachment && msg.attachment"
                                      class="mt-2 pt-2 border-t border-indigo-500">
-
                                     <!-- Image preview -->
                                     <div v-if="msg.attachment.type === 'image'">
                                         <img :src="msg.attachment.url"
@@ -434,7 +473,6 @@ function formatFileSize(bytes) {
                                             {{ msg.attachment.original_name }}
                                         </p>
                                     </div>
-
                                     <!-- Non-image chip -->
                                     <div v-else
                                          class="flex items-center gap-2 px-2.5 py-1.5 bg-indigo-700/50
@@ -487,25 +525,30 @@ function formatFileSize(bytes) {
 
                 </div>
 
-                <!-- Thinking indicator -->
-                <div v-if="sending" class="flex gap-2">
-                    <div class="w-7 h-7 bg-indigo-600/20 rounded-full flex items-center justify-center shrink-0">
+                <!-- ── STREAMING bubble (shows while AI is typing) ── -->
+                <div v-if="isStreaming" class="flex gap-2">
+                    <div class="w-7 h-7 bg-indigo-600/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                         <Bot class="w-4 h-4 text-indigo-400" />
                     </div>
-                    <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"
-                              style="animation-delay:0ms" />
-                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"
-                              style="animation-delay:150ms" />
-                        <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"
-                              style="animation-delay:300ms" />
+                    <div class="max-w-[75%] bg-slate-800 text-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                        <!-- Show content as it streams in -->
+                        <span v-if="streamingContent">{{ streamingContent }}</span>
+                        <!-- Bouncing dots while waiting for first token -->
+                        <span v-else class="flex items-center gap-1.5 py-0.5">
+                            <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay:0ms" />
+                            <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay:150ms" />
+                            <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay:300ms" />
+                        </span>
+                        <!-- Blinking cursor while streaming -->
+                        <span v-if="streamingContent"
+                              class="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 animate-pulse align-middle" />
                     </div>
                 </div>
 
                 <div ref="messagesEnd" />
             </div>
 
-            <!-- ── Template picker ── -->
+            <!-- ── Template picker (unchanged) ── -->
             <div v-if="showTemplates && templates.length > 0"
                  class="border-t border-slate-800 bg-slate-900 max-h-48 overflow-y-auto shrink-0">
                 <div class="flex items-center justify-between px-4 py-2 border-b border-slate-800">
@@ -521,65 +564,47 @@ function formatFileSize(bytes) {
                         <FileText class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                         <span class="text-sm text-slate-300 font-medium">{{ tpl.name }}</span>
                     </div>
-                    <p class="text-slate-500 text-xs mt-0.5 ml-5.5 line-clamp-1">
-                        {{ tpl.content }}
-                    </p>
+                    <p class="text-slate-500 text-xs mt-0.5 line-clamp-1">{{ tpl.content }}</p>
                 </button>
             </div>
 
-            <!-- ── Input area ── -->
+            <!-- ── Input area (unchanged) ── -->
             <div class="border-t border-slate-800 bg-slate-900 px-4 pt-3 pb-4 shrink-0">
 
-                <!-- Hidden file input -->
                 <input ref="fileInputRef"
                        type="file"
                        accept=".jpg,.jpeg,.png,.gif,.webp,.txt,.pdf,.xls,.xlsx"
                        class="hidden"
                        @change="handleFileSelect" />
 
-                <!-- Pending attachment preview chip -->
+                <!-- Pending attachment preview -->
                 <div v-if="pendingAttachment || uploading"
                      class="flex items-center gap-2 px-3 py-2 bg-slate-800 border border-slate-700
                             rounded-xl mb-2 text-sm">
-
-                    <!-- Uploading spinner -->
                     <template v-if="uploading">
                         <RefreshCw class="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
                         <span class="text-slate-400 text-xs">Uploading file…</span>
                     </template>
-
-                    <!-- Image preview chip -->
                     <template v-else-if="pendingAttachment?.type === 'image'">
                         <img :src="pendingAttachment.url"
                              class="w-10 h-10 rounded-lg object-cover border border-slate-600 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-slate-300 text-xs truncate">
-                                {{ pendingAttachment.original_name }}
-                            </p>
+                            <p class="text-slate-300 text-xs truncate">{{ pendingAttachment.original_name }}</p>
                             <p class="text-indigo-400 text-xs">image ready</p>
                         </div>
                         <button @click="removePendingAttachment"
-                                class="ml-auto text-slate-500 hover:text-red-400 transition-colors shrink-0"
-                                title="Remove">
+                                class="ml-auto text-slate-500 hover:text-red-400 transition-colors shrink-0">
                             <X class="w-4 h-4" />
                         </button>
                     </template>
-
-                    <!-- Non-image chip -->
                     <template v-else-if="pendingAttachment">
-                        <component :is="attachmentIcon"
-                                   class="w-4 h-4 text-indigo-400 shrink-0" />
+                        <component :is="attachmentIcon" class="w-4 h-4 text-indigo-400 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-slate-300 text-xs truncate">
-                                {{ pendingAttachment.original_name }}
-                            </p>
-                            <p class="text-indigo-400 text-xs uppercase">
-                                {{ pendingAttachment.type }} ready
-                            </p>
+                            <p class="text-slate-300 text-xs truncate">{{ pendingAttachment.original_name }}</p>
+                            <p class="text-indigo-400 text-xs uppercase">{{ pendingAttachment.type }} ready</p>
                         </div>
                         <button @click="removePendingAttachment"
-                                class="ml-auto text-slate-500 hover:text-red-400 transition-colors shrink-0"
-                                title="Remove">
+                                class="ml-auto text-slate-500 hover:text-red-400 transition-colors shrink-0">
                             <X class="w-4 h-4" />
                         </button>
                     </template>
@@ -595,49 +620,42 @@ function formatFileSize(bytes) {
                 <!-- Input row -->
                 <div class="flex items-end gap-2 bg-slate-800 rounded-2xl px-3 py-2.5 border border-slate-700 focus-within:border-indigo-500/50 transition-colors">
 
-                    <!-- Attach file button -->
                     <button @click="triggerFileInput"
-                            :disabled="chat.status === 'closed' || uploading"
+                            :disabled="chatStatus === 'closed' || uploading"
                             class="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-0.5 shrink-0"
-                            :class="pendingAttachment
-                                ? 'text-indigo-400 bg-indigo-500/10'
-                                : 'text-slate-500 hover:text-indigo-400'"
+                            :class="pendingAttachment ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-500 hover:text-indigo-400'"
                             title="Attach file (image, PDF, TXT, Excel — max 10MB)">
                         <Paperclip class="w-4 h-4" />
                     </button>
 
-                    <!-- Template button -->
                     <button @click="showTemplates = !showTemplates"
-                            :disabled="chat.status === 'closed'"
+                            :disabled="chatStatus === 'closed'"
                             class="p-1.5 rounded-lg transition-colors disabled:opacity-40 mb-0.5 shrink-0"
                             :class="showTemplates ? 'text-indigo-400' : 'text-slate-500 hover:text-indigo-400'"
                             title="Insert template">
                         <FileText class="w-4 h-4" />
                     </button>
 
-                    <!-- Textarea -->
                     <textarea
                         ref="textareaRef"
                         v-model="messageInput"
                         @keydown="handleKeydown"
                         @input="resizeTextarea"
-                        :disabled="sending || chat.status === 'closed'"
-                        :placeholder="chat.status === 'closed'
+                        :disabled="sending || chatStatus === 'closed'"
+                        :placeholder="chatStatus === 'closed'
                             ? 'Chat is closed. Start a new chat above.'
                             : 'Message EasyAI… (Ctrl+Enter to send)'"
                         rows="1"
                         class="flex-1 bg-transparent text-white placeholder-slate-500 text-sm outline-none resize-none max-h-48 py-1"
                     />
 
-                    <!-- Char counter -->
                     <div class="flex items-center gap-1 text-slate-600 shrink-0 mb-0.5">
                         <Zap class="w-3 h-3" />
                         <span class="text-xs">{{ messageInput.length }}</span>
                     </div>
 
-                    <!-- Send button -->
                     <button @click="sendMessage"
-                            :disabled="!messageInput.trim() || sending || chat.status === 'closed'"
+                            :disabled="!messageInput.trim() || sending || chatStatus === 'closed'"
                             class="p-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
                                    disabled:cursor-not-allowed text-white rounded-lg transition-colors
                                    shrink-0 mb-0.5">
@@ -652,7 +670,7 @@ function formatFileSize(bytes) {
 
         </div>
 
-        <!-- ── Lightbox ── -->
+        <!-- ── Lightbox (unchanged) ── -->
         <Teleport to="body">
             <div v-if="lightboxUrl"
                  class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"

@@ -15,13 +15,13 @@ use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PromptTemplateController;
+use App\Http\Controllers\StreamController;
 use App\Models\UsageLog;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
 
 /*
 |--------------------------------------------------------------------------
@@ -39,13 +39,10 @@ Route::domain('easyai.local')->group(function () {
         Route::get('/register',  [AuthController::class, 'showRegister'])->name('register');
         Route::post('/register', [AuthController::class, 'register']);
 
-
         Route::get('/forgot-password',        [PasswordResetController::class, 'showForgotForm'])->name('password.request');
-Route::post('/forgot-password',       [PasswordResetController::class, 'sendResetLink'])->name('password.email');
-Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
-Route::post('/reset-password',        [PasswordResetController::class, 'reset'])->name('password.update');
-
-
+        Route::post('/forgot-password',       [PasswordResetController::class, 'sendResetLink'])->name('password.email');
+        Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
+        Route::post('/reset-password',        [PasswordResetController::class, 'reset'])->name('password.update');
     });
 
     // ── Authenticated ──────────────────────────────────────────────────────
@@ -57,13 +54,12 @@ Route::post('/reset-password',        [PasswordResetController::class, 'reset'])
         Route::middleware('tenant')->group(function () {
 
             // Dashboard
-          Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-
-          Route::get('/notifications',            [NotificationController::class, 'index'])->name('notifications.index');
-Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
-
+            // Notifications
+            Route::get('/notifications',            [NotificationController::class, 'index'])->name('notifications.index');
+            Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+            Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
 
             // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);
@@ -83,13 +79,17 @@ Route::post('/notifications/read-all',  [NotificationController::class, 'markAll
                 Route::get('/{chat}',    [ChatController::class, 'show'])   ->name('projects.chats.show');
                 Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('projects.chats.destroy');
 
-                // Messages (nested under chat)
+                // Messages
                 Route::prefix('/{chat}/messages')->group(function () {
                     Route::post('/', [MessageController::class, 'store'])->name('projects.chats.messages.store');
                     Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                 });
 
-                // File upload (nested under chat)
+                // ── SSE Streaming (M19) ────────────────────────────────────
+                Route::get('/{chat}/stream', [StreamController::class, 'stream'])
+                    ->name('projects.chats.stream');
+
+                // File upload
                 Route::post('/{chat}/upload',
                     [FileUploadController::class, 'store'])
                     ->name('chats.upload');
@@ -204,11 +204,10 @@ Route::domain('admin.easyai.local')->group(function () {
     // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
 
-        // Dashboard
         Route::get('/', [AdminDashboardController::class, 'index'])
             ->name('admin.dashboard');
 
-        // ── Tenants ────────────────────────────────────────────────────────
+        // Tenants
         Route::get('/tenants',
             [AdminTenantController::class, 'index'])
             ->name('admin.tenants.index');
@@ -225,7 +224,7 @@ Route::domain('admin.easyai.local')->group(function () {
             [AdminTenantController::class, 'updateStatus'])
             ->name('admin.tenants.status');
 
-        // ── Plans ──────────────────────────────────────────────────────────
+        // Plans
         Route::get('/plans',
             [AdminPlanController::class, 'index'])
             ->name('admin.plans.index');
@@ -242,7 +241,7 @@ Route::domain('admin.easyai.local')->group(function () {
             [AdminPlanController::class, 'destroy'])
             ->name('admin.plans.destroy');
 
-        // ── Payments ───────────────────────────────────────────────────────
+        // Payments
         Route::get('/payments',
             [AdminPaymentController::class, 'index'])
             ->name('admin.payments.index');
@@ -251,7 +250,7 @@ Route::domain('admin.easyai.local')->group(function () {
             [AdminPaymentController::class, 'approveCod'])
             ->name('admin.payments.approve');
 
-        // ── Usage ──────────────────────────────────────────────────────────
+        // Usage
         Route::get('/usage',
             [AdminUsageController::class, 'index'])
             ->name('admin.usage.index');
