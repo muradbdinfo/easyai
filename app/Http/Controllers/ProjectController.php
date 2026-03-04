@@ -1,5 +1,7 @@
 <?php
 
+// FILE: app/Http/Controllers/ProjectController.php
+
 namespace App\Http\Controllers;
 
 use App\Models\Project;
@@ -10,8 +12,7 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        $tenant = app('tenant');
-
+        $tenant   = app('tenant');
         $projects = Project::where('tenant_id', $tenant->id)
             ->withCount('chats')
             ->latest()
@@ -24,12 +25,13 @@ class ProjectController extends Controller
 
     public function store(Request $request)
     {
-        $tenant = app('tenant');
+        $tenant          = app('tenant');
+        $allowedModels   = config('ollama.available_models', [config('ollama.model')]);
 
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'model'       => ['nullable', 'string', 'max:100'],
+            'model'       => ['nullable', 'string', 'in:' . implode(',', $allowedModels)],
         ]);
 
         $project = Project::create([
@@ -37,83 +39,97 @@ class ProjectController extends Controller
             'user_id'     => $request->user()->id,
             'name'        => $validated['name'],
             'description' => $validated['description'] ?? null,
-            'model'       => $validated['model'] ?? 'llama3',
+            'model'       => $validated['model'] ?? config('ollama.model'),
         ]);
 
-        return redirect()->route('projects.show', $project)
-            ->with('success', 'Project created.');
+        return redirect()->route('projects.show', $project->id);
     }
 
-    public function show(Project $project)
+    public function show(Request $request, Project $project)
     {
         $tenant = app('tenant');
-
         abort_if($project->tenant_id !== $tenant->id, 403);
 
         $project->load(['chats' => function ($q) {
-            $q->latest()->take(20);
+            $q->latest()->take(50);
         }]);
 
-        $project->loadCount('chats');
-
         return Inertia::render('Projects/Show', [
-            'project' => $project,
+            'project'       => $project,
+            'chats'         => $project->chats,
+            'ollama_models' => config('ollama.available_models', [config('ollama.model')]),
         ]);
     }
 
     public function update(Request $request, Project $project)
     {
-        $tenant = app('tenant');
+        $tenant        = app('tenant');
+        $allowedModels = config('ollama.available_models', [config('ollama.model')]);
 
         abort_if($project->tenant_id !== $tenant->id, 403);
 
         $validated = $request->validate([
-            'name'            => ['sometimes', 'required', 'string', 'max:255'],
-            'description'     => ['nullable', 'string', 'max:1000'],
-            'system_prompt'   => ['nullable', 'string', 'max:4000'],
-            'context_summary' => ['nullable', 'string'],
-            'model'           => ['nullable', 'string', 'max:100'],
+            'name'           => ['sometimes', 'required', 'string', 'max:255'],
+            'description'    => ['nullable', 'string', 'max:1000'],
+            'system_prompt'  => ['nullable', 'string', 'max:4000'],
+            'model'          => ['nullable', 'string', 'in:' . implode(',', $allowedModels)],
         ]);
 
-        $project->update($validated);
+        // Only update fields that were actually sent
+        $updateData = array_filter([
+            'name'          => $validated['name']          ?? null,
+            'description'   => $validated['description']   ?? null,
+            'system_prompt' => $validated['system_prompt'] ?? null,
+            'model'         => $validated['model']         ?? null,
+        ], fn($v) => $v !== null);
+
+        // Allow explicit null for description and system_prompt
+        if (array_key_exists('description', $validated)) {
+            $updateData['description'] = $validated['description'];
+        }
+        if (array_key_exists('system_prompt', $validated)) {
+            $updateData['system_prompt'] = $validated['system_prompt'];
+        }
+        if (array_key_exists('model', $validated) && $validated['model']) {
+            $updateData['model'] = $validated['model'];
+        }
+
+        $project->update($updateData);
 
         return back()->with('success', 'Project updated.');
     }
 
-    public function destroy(Project $project)
+    public function destroy(Request $request, Project $project)
     {
         $tenant = app('tenant');
-
         abort_if($project->tenant_id !== $tenant->id, 403);
 
         $project->delete();
 
-        return redirect()->route('projects.index')
-            ->with('success', 'Project deleted.');
+        return redirect()->route('projects.index');
     }
 
-    public function clearMemory(Project $project)
-{
-    $tenant = app('tenant');
-    abort_if($project->tenant_id !== $tenant->id, 403);
+    public function clearMemory(Request $request, Project $project)
+    {
+        $tenant = app('tenant');
+        abort_if($project->tenant_id !== $tenant->id, 403);
 
-    $project->update(['context_summary' => null]);
+        $project->update(['context_summary' => null]);
 
-    return back()->with('success', 'Project memory cleared.');
-}
+        return back()->with('success', 'Project memory cleared.');
+    }
 
-public function updateMemory(Request $request, Project $project)
-{
-    $tenant = app('tenant');
-    abort_if($project->tenant_id !== $tenant->id, 403);
+    public function updateMemory(Request $request, Project $project)
+    {
+        $tenant = app('tenant');
+        abort_if($project->tenant_id !== $tenant->id, 403);
 
-    $request->validate([
-        'context_summary' => ['nullable', 'string', 'max:20000'],
-    ]);
+        $validated = $request->validate([
+            'context_summary' => ['nullable', 'string'],
+        ]);
 
-    $project->update(['context_summary' => $request->context_summary]);
+        $project->update(['context_summary' => $validated['context_summary']]);
 
-    return back()->with('success', 'Project memory updated.');
-}
-
+        return back()->with('success', 'Project memory updated.');
+    }
 }

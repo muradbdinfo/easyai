@@ -15,11 +15,12 @@ class Message extends Model
         'role',
         'content',
         'tokens',
-        'model',
+        'model','attachment_id', 'has_attachment'
     ];
 
     protected $casts = [
         'tokens' => 'integer',
+        'has_attachment' => 'boolean'
     ];
 
     public function chat()
@@ -31,4 +32,11 @@ class Message extends Model
     {
         return $this->belongsTo(Tenant::class);
     }
+
+
+    public function attachment()
+  {
+      return $this->belongsTo(ChatAttachment::class, 'attachment_id');
+  }
+  
 }

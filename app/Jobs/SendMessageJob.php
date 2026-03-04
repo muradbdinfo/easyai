@@ -1,8 +1,12 @@
 <?php
 
+// FILE: app/Jobs/SendMessageJob.php
+// REPLACES existing file entirely
+
 namespace App\Jobs;
 
 use App\Models\Chat;
+use App\Models\ChatAttachment;
 use App\Models\Message;
 use App\Models\Tenant;
 use App\Models\UsageLog;
@@ -16,6 +20,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class SendMessageJob implements ShouldQueue
 {
@@ -25,9 +30,10 @@ class SendMessageJob implements ShouldQueue
     public int $timeout = 150;
 
     public function __construct(
-        public int $chatId,
-        public int $tenantId,
-        public int $userId,
+        public int  $chatId,
+        public int  $tenantId,
+        public int  $userId,
+        public ?int $attachmentId = null,   // ← NEW
     ) {}
 
     public function handle(
@@ -36,7 +42,8 @@ class SendMessageJob implements ShouldQueue
         TokenCounterService $counter,
         MemoryService       $memory,
     ): void {
-        // a) Load chat with project
+
+        // ── a) Load chat with project ─────────────────────────────
         $chat = Chat::with('project')->find($this->chatId);
 
         if (!$chat) {
@@ -44,7 +51,7 @@ class SendMessageJob implements ShouldQueue
             return;
         }
 
-        // b) Load tenant
+        // ── b) Load tenant ────────────────────────────────────────
         $tenant = Tenant::find($this->tenantId);
 
         if (!$tenant) {
@@ -52,10 +59,65 @@ class SendMessageJob implements ShouldQueue
             return;
         }
 
-        // c) Build context using MemoryService
+        // ── c) Build context using MemoryService ──────────────────
         $messages = $memory->buildContext($chat, $chat->project);
 
-        // d) Call Ollama
+        // ── d) Inject attachment content into context ─────────────
+        if ($this->attachmentId) {
+            $attachment = ChatAttachment::find($this->attachmentId);
+
+            if ($attachment) {
+                // Find the last user message in $messages array
+                $lastKey = null;
+                foreach ($messages as $k => $m) {
+                    if ($m['role'] === 'user') {
+                        $lastKey = $k;
+                    }
+                }
+
+                if ($lastKey !== null) {
+                    $userContent = $messages[$lastKey]['content'] ?? '';
+                    $model       = $chat->project->model ?? config('ollama.model');
+
+                    if ($attachment->isImage()) {
+                        // Vision model (llava): send image as base64
+                        if (str_contains(strtolower($model), 'llava')) {
+                            try {
+                                $imageData = base64_encode(
+                                    Storage::disk('public')->get($attachment->path)
+                                );
+                                $messages[$lastKey]['images'] = [$imageData];
+                            } catch (\Throwable $e) {
+                                // Fallback: text description
+                                $messages[$lastKey]['content'] =
+                                    "[Attached Image: {$attachment->original_name}]\n\n"
+                                    . $userContent;
+                            }
+                        } else {
+                            // Non-vision model: prepend text description
+                            $messages[$lastKey]['content'] =
+                                "[Image attached: {$attachment->original_name}. "
+                                . "Please describe or analyze this image if you can.]\n\n"
+                                . $userContent;
+                        }
+                    } else {
+                        // TXT / PDF / Excel: inject extracted text as system context
+                        $extracted   = $attachment->extracted_text ?? '[Could not extract file content]';
+                        $fileContext = "=== Attached File: {$attachment->original_name} ===\n"
+                                    . $extracted
+                                    . "\n=== End of File ===";
+
+                        // Insert system message BEFORE the last user message
+                        array_splice($messages, $lastKey, 0, [[
+                            'role'    => 'system',
+                            'content' => $fileContext,
+                        ]]);
+                    }
+                }
+            }
+        }
+
+        // ── e) Call Ollama ────────────────────────────────────────
         try {
             $result = $ollama->chat($messages, $chat->project->model ?? null);
         } catch (\Throwable $e) {
@@ -72,7 +134,7 @@ class SendMessageJob implements ShouldQueue
             return;
         }
 
-        // e) Save assistant response
+        // ── f) Save assistant response ────────────────────────────
         Message::create([
             'chat_id'   => $this->chatId,
             'tenant_id' => $this->tenantId,
@@ -82,7 +144,7 @@ class SendMessageJob implements ShouldQueue
             'model'     => $chat->project->model ?? config('ollama.model'),
         ]);
 
-        // f) Calculate total tokens — use TokenCounterService as fallback
+        // ── g) Calculate total tokens (with fallback) ─────────────
         $totalTokens = $result['prompt_tokens'] + $result['completion_tokens'];
 
         if ($totalTokens === 0) {
@@ -91,13 +153,13 @@ class SendMessageJob implements ShouldQueue
         }
 
         try {
-            // g) Update chat total_tokens
+            // ── h) Update chat total_tokens ───────────────────────
             $chat->increment('total_tokens', $totalTokens);
 
-            // h) Deduct from tenant quota
+            // ── i) Deduct from tenant quota ───────────────────────
             $quota->deduct($tenant, $totalTokens);
 
-            // i) Log usage
+            // ── j) Log usage ──────────────────────────────────────
             UsageLog::create([
                 'tenant_id'         => $this->tenantId,
                 'user_id'           => $this->userId,
@@ -110,7 +172,7 @@ class SendMessageJob implements ShouldQueue
                 'created_at'        => now(),
             ]);
 
-            // j) Close chat if quota exceeded after this exchange
+            // ── k) Close chat if quota exceeded ───────────────────
             $tenant->refresh();
             if ($quota->isExceeded($tenant)) {
                 $chat->update([
@@ -119,7 +181,7 @@ class SendMessageJob implements ShouldQueue
                 ]);
             }
 
-            // k) Dispatch summarize job when chat has 20+ messages
+            // ── l) Dispatch summarize job every 20 messages ───────
             $messageCount = Message::where('chat_id', $this->chatId)->count();
             if ($messageCount >= 20 && $messageCount % 20 === 0) {
                 SummarizeChatJob::dispatch($this->chatId);

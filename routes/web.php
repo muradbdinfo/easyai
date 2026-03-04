@@ -1,7 +1,17 @@
 <?php
 
+// FILE: routes/web.php
+
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Admin\PlanController as AdminPlanController;
+use App\Http\Controllers\Admin\TenantController as AdminTenantController;
+use App\Http\Controllers\Admin\UsageController as AdminUsageController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PromptTemplateController;
@@ -18,7 +28,7 @@ Route::domain('easyai.local')->group(function () {
 
     Route::get('/', fn () => redirect()->route('login'));
 
-    // ── Guest ──────────────────────────────────────────────────────
+    // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
         Route::get('/login',     [AuthController::class, 'showLogin'])->name('login');
         Route::post('/login',    [AuthController::class, 'login']);
@@ -26,33 +36,32 @@ Route::domain('easyai.local')->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
     });
 
-    // ── Auth ───────────────────────────────────────────────────────
+    // ── Authenticated ──────────────────────────────────────────────────────
     Route::middleware('auth')->group(function () {
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-        // ── Auth + Tenant ──────────────────────────────────────────
+        // ── Auth + Tenant ──────────────────────────────────────────────────
         Route::middleware('tenant')->group(function () {
 
             // Dashboard
             Route::get('/dashboard', fn () => Inertia::render('Dashboard'))
                 ->name('dashboard');
 
-            // Projects
+            // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);
 
-            // Project memory
-Route::delete('/projects/{project}/memory',
-    [\App\Http\Controllers\ProjectController::class, 'clearMemory'])
-    ->name('projects.memory.clear');
+            Route::delete('/projects/{project}/memory',
+                [ProjectController::class, 'clearMemory'])
+                ->name('projects.memory.clear');
 
-Route::patch('/projects/{project}/memory',
-    [\App\Http\Controllers\ProjectController::class, 'updateMemory'])
-    ->name('projects.memory.update');
+            Route::patch('/projects/{project}/memory',
+                [ProjectController::class, 'updateMemory'])
+                ->name('projects.memory.update');
 
-
-            // Chats (nested under project)
+            // ── Chats (nested under project) ───────────────────────────────
             Route::prefix('/projects/{project}/chats')->group(function () {
+
                 Route::post('/',         [ChatController::class, 'store'])  ->name('projects.chats.store');
                 Route::get('/{chat}',    [ChatController::class, 'show'])   ->name('projects.chats.show');
                 Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('projects.chats.destroy');
@@ -62,9 +71,19 @@ Route::patch('/projects/{project}/memory',
                     Route::post('/', [MessageController::class, 'store'])->name('projects.chats.messages.store');
                     Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                 });
+
+                // File upload (nested under chat)
+                Route::post('/{chat}/upload',
+                    [FileUploadController::class, 'store'])
+                    ->name('chats.upload');
             });
 
-            // Templates
+            // Attachment delete
+            Route::delete('/attachments/{attachment}',
+                [FileUploadController::class, 'destroy'])
+                ->name('attachments.destroy');
+
+            // ── Templates ──────────────────────────────────────────────────
             Route::get('/templates',
                 [PromptTemplateController::class, 'index'])->name('templates.index');
             Route::post('/templates',
@@ -74,69 +93,65 @@ Route::patch('/projects/{project}/memory',
             Route::delete('/templates/{promptTemplate}',
                 [PromptTemplateController::class, 'destroy'])->name('templates.destroy');
 
+            // ── Export ─────────────────────────────────────────────────────
+            Route::get('/projects/{project}/chats/{chat}/export/pdf',
+                [ExportController::class, 'exportPdf'])
+                ->name('chats.export.pdf');
 
-                // Export
-Route::get('/projects/{project}/chats/{chat}/export/pdf',
-    [\App\Http\Controllers\ExportController::class, 'exportPdf'])
-    ->name('chats.export.pdf');
+            Route::get('/projects/{project}/chats/{chat}/export/markdown',
+                [ExportController::class, 'exportMarkdown'])
+                ->name('chats.export.markdown');
 
-Route::get('/projects/{project}/chats/{chat}/export/markdown',
-    [\App\Http\Controllers\ExportController::class, 'exportMarkdown'])
-    ->name('chats.export.markdown');
+            // ── Billing ────────────────────────────────────────────────────
+            Route::get('/billing',
+                [BillingController::class, 'index'])
+                ->name('billing.index');
 
+            Route::get('/billing/plans',
+                [BillingController::class, 'plans'])
+                ->name('billing.plans');
 
-    // Billing
-Route::get('/billing',
-    [\App\Http\Controllers\BillingController::class, 'index'])
-    ->name('billing.index');
+            Route::get('/billing/plans/{plan}/select',
+                [BillingController::class, 'selectPlan'])
+                ->name('billing.select');
 
-Route::get('/billing/plans',
-    [\App\Http\Controllers\BillingController::class, 'plans'])
-    ->name('billing.plans');
+            Route::post('/billing/cod/{plan}',
+                [BillingController::class, 'processCod'])
+                ->name('billing.cod');
 
-Route::get('/billing/plans/{plan}/select',
-    [\App\Http\Controllers\BillingController::class, 'selectPlan'])
-    ->name('billing.select');
+            Route::post('/billing/sslcommerz/{plan}',
+                [BillingController::class, 'processSslcommerz'])
+                ->name('billing.sslcommerz');
 
-Route::post('/billing/cod/{plan}',
-    [\App\Http\Controllers\BillingController::class, 'processCod'])
-    ->name('billing.cod');
+            Route::get('/billing/sslcommerz/success',
+                [BillingController::class, 'sslSuccess'])
+                ->name('billing.sslcommerz.success');
 
-Route::post('/billing/sslcommerz/{plan}',
-    [\App\Http\Controllers\BillingController::class, 'processSslcommerz'])
-    ->name('billing.sslcommerz');
+            Route::get('/billing/sslcommerz/fail',
+                [BillingController::class, 'sslFail'])
+                ->name('billing.sslcommerz.fail');
 
-Route::get('/billing/sslcommerz/success',
-    [\App\Http\Controllers\BillingController::class, 'sslSuccess'])
-    ->name('billing.sslcommerz.success');
+            Route::get('/billing/sslcommerz/cancel',
+                [BillingController::class, 'sslCancel'])
+                ->name('billing.sslcommerz.cancel');
 
-Route::get('/billing/sslcommerz/fail',
-    [\App\Http\Controllers\BillingController::class, 'sslFail'])
-    ->name('billing.sslcommerz.fail');
+            Route::post('/billing/sslcommerz/ipn',
+                [BillingController::class, 'sslIpn'])
+                ->name('billing.sslcommerz.ipn');
 
-Route::get('/billing/sslcommerz/cancel',
-    [\App\Http\Controllers\BillingController::class, 'sslCancel'])
-    ->name('billing.sslcommerz.cancel');
+            Route::post('/billing/stripe/{plan}',
+                [BillingController::class, 'processStripe'])
+                ->name('billing.stripe');
 
-Route::post('/billing/sslcommerz/ipn',
-    [\App\Http\Controllers\BillingController::class, 'sslIpn'])
-    ->name('billing.sslcommerz.ipn');
+            Route::get('/billing/stripe/success',
+                [BillingController::class, 'stripeSuccess'])
+                ->name('billing.stripe.success');
 
-Route::post('/billing/stripe/{plan}',
-    [\App\Http\Controllers\BillingController::class, 'processStripe'])
-    ->name('billing.stripe');
+            Route::get('/billing/invoice/{payment}',
+                [BillingController::class, 'downloadInvoice'])
+                ->name('billing.invoice.download');
 
-Route::get('/billing/stripe/success',
-    [\App\Http\Controllers\BillingController::class, 'stripeSuccess'])
-    ->name('billing.stripe.success');
-
-Route::get('/billing/invoice/{payment}',
-    [\App\Http\Controllers\BillingController::class, 'downloadInvoice'])
-    ->name('billing.invoice.download');
-
-
-
-            // Usage (MIS placeholder)
+            // ── Usage / MIS ────────────────────────────────────────────────
             Route::get('/usage', function () {
                 $tenant = app('tenant');
                 $logs   = UsageLog::where('tenant_id', $tenant->id)
@@ -146,18 +161,15 @@ Route::get('/billing/invoice/{payment}',
                 return Inertia::render('Usage/Index', ['logs' => $logs]);
             })->name('usage.index');
 
-        });
-    });
+        }); // end tenant middleware
+    }); // end auth middleware
 
-});
+}); // end easyai.local domain
 
-
-
-Route::domain('easyai.local')->post(
-    '/stripe/webhook',
-    [\App\Http\Controllers\BillingController::class, 'stripeWebhook']
-)->name('stripe.webhook');
-
+// ── Stripe webhook (no auth, no CSRF) ─────────────────────────────────────────
+Route::domain('easyai.local')
+    ->post('/stripe/webhook', [BillingController::class, 'stripeWebhook'])
+    ->name('stripe.webhook');
 
 /*
 |--------------------------------------------------------------------------
@@ -166,60 +178,67 @@ Route::domain('easyai.local')->post(
 */
 Route::domain('admin.easyai.local')->group(function () {
 
-    // ── Guest ──────────────────────────────────────────────────────
+    // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
         Route::get('/login',  [AuthController::class, 'showLogin'])->name('admin.login');
         Route::post('/login', [AuthController::class, 'login']);
     });
 
-    // ── Auth + Superadmin ──────────────────────────────────────────
+    // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
 
-        Route::get('/',
-            [\App\Http\Controllers\Admin\DashboardController::class, 'index'])
+        // Dashboard
+        Route::get('/', [AdminDashboardController::class, 'index'])
             ->name('admin.dashboard');
 
-        // Tenants
+        // ── Tenants ────────────────────────────────────────────────────────
         Route::get('/tenants',
-            [\App\Http\Controllers\Admin\TenantController::class, 'index'])
+            [AdminTenantController::class, 'index'])
             ->name('admin.tenants.index');
+
         Route::get('/tenants/{tenant}',
-            [\App\Http\Controllers\Admin\TenantController::class, 'show'])
+            [AdminTenantController::class, 'show'])
             ->name('admin.tenants.show');
+
         Route::put('/tenants/{tenant}/plan',
-            [\App\Http\Controllers\Admin\TenantController::class, 'updatePlan'])
+            [AdminTenantController::class, 'updatePlan'])
             ->name('admin.tenants.plan');
+
         Route::put('/tenants/{tenant}/status',
-            [\App\Http\Controllers\Admin\TenantController::class, 'updateStatus'])
+            [AdminTenantController::class, 'updateStatus'])
             ->name('admin.tenants.status');
 
-        // Plans
+        // ── Plans ──────────────────────────────────────────────────────────
         Route::get('/plans',
-            [\App\Http\Controllers\Admin\PlanController::class, 'index'])
+            [AdminPlanController::class, 'index'])
             ->name('admin.plans.index');
+
         Route::post('/plans',
-            [\App\Http\Controllers\Admin\PlanController::class, 'store'])
+            [AdminPlanController::class, 'store'])
             ->name('admin.plans.store');
+
         Route::put('/plans/{plan}',
-            [\App\Http\Controllers\Admin\PlanController::class, 'update'])
+            [AdminPlanController::class, 'update'])
             ->name('admin.plans.update');
+
         Route::delete('/plans/{plan}',
-            [\App\Http\Controllers\Admin\PlanController::class, 'destroy'])
+            [AdminPlanController::class, 'destroy'])
             ->name('admin.plans.destroy');
 
-        // Payments
+        // ── Payments ───────────────────────────────────────────────────────
         Route::get('/payments',
-            [\App\Http\Controllers\Admin\PaymentController::class, 'index'])
+            [AdminPaymentController::class, 'index'])
             ->name('admin.payments.index');
+
         Route::put('/payments/{id}/approve',
-            [\App\Http\Controllers\Admin\PaymentController::class, 'approveCod'])
+            [AdminPaymentController::class, 'approveCod'])
             ->name('admin.payments.approve');
 
-        // Usage
+        // ── Usage ──────────────────────────────────────────────────────────
         Route::get('/usage',
-            [\App\Http\Controllers\Admin\UsageController::class, 'index'])
+            [AdminUsageController::class, 'index'])
             ->name('admin.usage.index');
 
-    });
+    }); // end superadmin middleware
 
-});
+}); // end admin.easyai.local domain
