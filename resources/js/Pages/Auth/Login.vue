@@ -1,7 +1,10 @@
 <script setup>
-import { ref } from 'vue'
-import { useForm, Link } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
+import { useForm, Link, usePage } from '@inertiajs/vue3'
 import { Mail, Lock, LogIn, Bot } from 'lucide-vue-next'
+
+const page    = usePage()
+const success = computed(() => page.props.flash?.success)
 
 const form = useForm({
     email: '',
@@ -31,6 +34,12 @@ const submit = () => {
 
             <!-- Card -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+
+                <!-- Flash Success -->
+                <div v-if="success"
+                     class="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
+                    {{ success }}
+                </div>
 
                 <!-- Flash Error -->
                 <div v-if="form.errors.email"
@@ -78,6 +87,16 @@ const submit = () => {
                                 placeholder="••••••••"
                             />
                         </div>
+                    </div>
+
+                    <!-- Forgot password link -->
+                    <div class="flex justify-end">
+                        <Link
+                            :href="route('password.request')"
+                            class="text-xs text-slate-500 hover:text-indigo-400 transition-colors"
+                        >
+                            Forgot password?
+                        </Link>
                     </div>
 
                     <!-- Remember -->
