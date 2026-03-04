@@ -18,6 +18,7 @@ use App\Http\Controllers\PromptTemplateController;
 use App\Models\UsageLog;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,8 +46,7 @@ Route::domain('easyai.local')->group(function () {
         Route::middleware('tenant')->group(function () {
 
             // Dashboard
-            Route::get('/dashboard', fn () => Inertia::render('Dashboard'))
-                ->name('dashboard');
+          Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
             // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);
