@@ -167,6 +167,12 @@ function isActive(path) {
                 <NotificationBell />
             </header>
 
+
+            <!-- Desktop top bar -->
+<header class="hidden md:flex items-center justify-end px-6 py-3 bg-slate-950 border-b border-slate-800 shrink-0">
+    <NotificationBell />
+</header>
+
             <!-- Page content -->
             <main class="flex-1 overflow-auto">
                 <slot />
