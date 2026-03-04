@@ -11,6 +11,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             PlanSeeder::class,
             SuperAdminSeeder::class,
+            TenantSeeder::class,
+            ProjectSeeder::class,
+            PromptTemplateSeeder::class,
         ]);
     }
 }

@@ -26,12 +26,6 @@ function formatDate(d) {
     })
 }
 
-function statusIcon(status) {
-    return status === 'completed' ? 'CheckCircle'
-         : status === 'pending'   ? 'Clock'
-         : 'AlertCircle'
-}
-
 function methodIcon(method) {
     return method === 'cod'        ? Banknote
          : method === 'sslcommerz' ? Globe
@@ -164,7 +158,7 @@ function methodColor(method) {
                                     {{ formatDate(payment.created_at) }}
                                 </td>
                                 <td class="px-6 py-3">
-                                    
+                                    <a
                                         v-if="payment.invoice_path"
                                         :href="route('billing.invoice.download', payment.id)"
                                         class="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
