@@ -1,8 +1,5 @@
 <?php
 
-// FILE: app/Http/Controllers/Api/V1/FileUploadController.php
-// NEW FILE
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -12,6 +9,7 @@ use App\Models\Project;
 use App\Services\FileExtractorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FileUploadController extends Controller
@@ -19,9 +17,6 @@ class FileUploadController extends Controller
     public function __construct(private FileExtractorService $extractor) {}
 
     /**
-     * Upload a file and create a pending attachment.
-     * Returns attachment_id to be sent with the next message.
-     *
      * POST /api/v1/projects/{project}/chats/{chat}/upload
      */
     public function store(Request $request, Project $project, Chat $chat): JsonResponse
@@ -29,7 +24,7 @@ class FileUploadController extends Controller
         $tenant = app('tenant');
 
         abort_if($project->tenant_id !== $tenant->id, 403);
-        abort_if($chat->tenant_id   !== $tenant->id, 403);
+        abort_if($chat->tenant_id    !== $tenant->id, 403);
 
         if ($chat->isClosed()) {
             return response()->json([
@@ -43,7 +38,7 @@ class FileUploadController extends Controller
             'file' => [
                 'required',
                 'file',
-                'max:10240',  // 10 MB absolute max
+                'max:10240',
                 'mimes:jpg,jpeg,png,gif,webp,txt,pdf,xls,xlsx',
             ],
         ]);
@@ -52,13 +47,13 @@ class FileUploadController extends Controller
         $ext       = strtolower($file->getClientOriginalExtension());
         $extracted = $this->extractor->extract($file);
 
-        // Store: storage/app/public/attachments/{tenant_id}/{chat_id}/
         $folder     = "attachments/{$tenant->id}/{$chat->id}";
         $storedName = Str::uuid() . '.' . $ext;
         $path       = $file->storeAs($folder, $storedName, 'public');
 
-        $isImage = $extracted['type'] === 'image';
-        $url     = $isImage ? asset('storage/' . $path) : null;
+        $url = $extracted['type'] === 'image'
+            ? asset('storage/' . $path)
+            : null;
 
         $attachment = ChatAttachment::create([
             'chat_id'        => $chat->id,
@@ -89,7 +84,7 @@ class FileUploadController extends Controller
                 'url'           => $attachment->getPublicUrl(),
                 'has_text'      => !empty($attachment->extracted_text),
                 'text_preview'  => $attachment->extracted_text
-                    ? mb_substr($attachment->extracted_text, 0, 200) . '...'
+                    ? mb_substr($attachment->extracted_text, 0, 200) . '…'
                     : null,
                 'meta'          => $attachment->meta,
             ],
@@ -97,8 +92,6 @@ class FileUploadController extends Controller
     }
 
     /**
-     * Delete a pending (unsent) attachment.
-     *
      * DELETE /api/v1/attachments/{attachment}
      */
     public function destroy(Request $request, ChatAttachment $attachment): JsonResponse
@@ -114,7 +107,7 @@ class FileUploadController extends Controller
             ], 422);
         }
 
-        \Illuminate\Support\Facades\Storage::disk('public')->delete($attachment->path);
+        Storage::disk('public')->delete($attachment->path);
         $attachment->delete();
 
         return response()->json([

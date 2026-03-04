@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Message extends Model
 {
@@ -15,28 +15,29 @@ class Message extends Model
         'role',
         'content',
         'tokens',
-        'model','attachment_id', 'has_attachment'
+        'model',
+        'attachment_id',
+        'has_attachment',
     ];
 
     protected $casts = [
-        'tokens' => 'integer',
-        'has_attachment' => 'boolean'
+        'tokens'         => 'integer',
+        'has_attachment' => 'boolean',
     ];
 
-    public function chat()
+    // ── Relationships ─────────────────────────────────────────────
+    public function chat(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Chat::class);
     }
 
-    public function tenant()
+    public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Tenant::class);
     }
 
-
-    public function attachment()
-  {
-      return $this->belongsTo(ChatAttachment::class, 'attachment_id');
-  }
-  
+    public function attachment(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(ChatAttachment::class, 'attachment_id');
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateChatTitleJob;
 use App\Models\Chat;
+use App\Models\ChatAttachment;
 use App\Models\Message;
 use App\Models\Project;
 use App\Services\QuotaService;
@@ -14,8 +15,10 @@ class MessageController extends Controller
     public function __construct(private QuotaService $quota) {}
 
     /**
-     * Save user message only.
-     * AI response is handled directly by StreamController via SSE.
+     * Save the user's message (and link attachment if provided).
+     * AI response is handled by StreamController via SSE — no job dispatch.
+     *
+     * POST /projects/{project}/chats/{chat}/messages
      */
     public function store(Request $request, Project $project, Chat $chat)
     {
@@ -26,7 +29,10 @@ class MessageController extends Controller
         abort_if($chat->tenant_id    !== $tenant->id, 403);
 
         if ($chat->isClosed()) {
-            return response()->json(['success' => false, 'message' => 'Chat is closed.'], 422);
+            return response()->json([
+                'success' => false,
+                'message' => 'Chat is closed.',
+            ], 422);
         }
 
         if (!$this->quota->check($tenant)) {
@@ -39,18 +45,44 @@ class MessageController extends Controller
 
         $validated = $request->validate([
             'content'       => ['required', 'string', 'max:4000'],
-            'attachment_id' => ['nullable', 'integer'],
+            'attachment_id' => ['nullable', 'integer', 'exists:chat_attachments,id'],
         ]);
 
+        // Resolve and validate ownership of the attachment
+        $attachment = null;
+        if (!empty($validated['attachment_id'])) {
+            $attachment = ChatAttachment::find($validated['attachment_id']);
+
+            // Security: make sure this attachment belongs to this tenant & chat
+            if (
+                !$attachment
+                || $attachment->tenant_id !== $tenant->id
+                || $attachment->chat_id   !== $chat->id
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid attachment.',
+                ], 422);
+            }
+        }
+
+        // Save user message
         $userMsg = Message::create([
-            'chat_id'   => $chat->id,
-            'tenant_id' => $tenant->id,
-            'role'      => 'user',
-            'content'   => $validated['content'],
-            'tokens'    => (int) ceil(mb_strlen($validated['content']) / 4),
+            'chat_id'        => $chat->id,
+            'tenant_id'      => $tenant->id,
+            'role'           => 'user',
+            'content'        => $validated['content'],
+            'tokens'         => (int) ceil(mb_strlen($validated['content']) / 4),
+            'attachment_id'  => $attachment?->id,
+            'has_attachment' => $attachment !== null,
         ]);
 
-        // Auto-generate chat title on first message (queued job)
+        // Link the attachment to this message (so it's permanent)
+        if ($attachment) {
+            $attachment->update(['message_id' => $userMsg->id]);
+        }
+
+        // Auto-generate title on first real message
         if ($chat->title === 'New Chat' || empty($chat->title)) {
             GenerateChatTitleJob::dispatch(
                 $chat->id,
@@ -59,7 +91,9 @@ class MessageController extends Controller
             );
         }
 
-        // NOTE: No SendMessageJob — AI response handled by StreamController
+        // NOTE: No SendMessageJob dispatched here.
+        // AI response is streamed directly by StreamController via SSE.
+
         return response()->json([
             'success'    => true,
             'message_id' => $userMsg->id,
@@ -67,7 +101,9 @@ class MessageController extends Controller
     }
 
     /**
-     * Return messages for a chat (used as fallback / history load).
+     * Return recent messages for a chat (used as fallback / history refresh).
+     *
+     * GET /projects/{project}/chats/{chat}/messages
      */
     public function index(Request $request, Project $project, Chat $chat)
     {
@@ -77,9 +113,26 @@ class MessageController extends Controller
         abort_if($chat->tenant_id    !== $tenant->id, 403);
 
         $messages = Message::where('chat_id', $chat->id)
+            ->with('attachment')
             ->orderBy('created_at', 'asc')
             ->take(100)
-            ->get();
+            ->get()
+            ->map(function (Message $msg) {
+                $data = $msg->toArray();
+
+                // Append attachment data for frontend rendering
+                if ($msg->has_attachment && $msg->attachment) {
+                    $data['attachment'] = [
+                        'type'          => $msg->attachment->type,
+                        'original_name' => $msg->attachment->original_name,
+                        'extension'     => $msg->attachment->extension,
+                        'url'           => $msg->attachment->getPublicUrl(),
+                        'file_size'     => $msg->attachment->file_size,
+                    ];
+                }
+
+                return $data;
+            });
 
         $fresh = $chat->fresh();
 
