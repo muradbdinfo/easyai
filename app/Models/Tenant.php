@@ -68,4 +68,10 @@ class Tenant extends Model
         if ($this->token_quota <= 0) return 0;
         return round(($this->tokens_used / $this->token_quota) * 100, 2);
     }
+
+    public function teamInvitations()
+{
+    return $this->hasMany(\App\Models\TeamInvitation::class);
+}
+
 }

@@ -1,5 +1,8 @@
 <?php
 
+// FILE: app/Http/Middleware/TenantMiddleware.php
+// CHANGES: Added is_active check after tenant suspension check
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -20,6 +23,11 @@ class TenantMiddleware
         // User must have a tenant
         if (!$user || !$user->tenant_id) {
             abort(403, 'No workspace assigned.');
+        }
+
+        // ── NEW: Check if user account is active ─────────────────
+        if (!$user->is_active) {
+            abort(403, 'Your account has been deactivated by the workspace admin.');
         }
 
         $tenant = $user->tenant;

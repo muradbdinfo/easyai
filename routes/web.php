@@ -21,6 +21,9 @@ use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\TeamController;
+use App\Http\Controllers\ProjectMemberController;
+use App\Http\Controllers\InvitationController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -45,6 +48,11 @@ Route::domain('easyai.local')->group(function () {
         Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
         Route::post('/reset-password',        [PasswordResetController::class, 'reset'])->name('password.update');
     });
+
+    // ── Invitations (public, no auth required) ────────────────────────────
+    Route::get('/invitation/{token}',          [InvitationController::class, 'show'])->name('invitation.show');
+    Route::post('/invitation/{token}/accept',  [InvitationController::class, 'accept'])->name('invitation.accept');
+    Route::post('/invitation/{token}/decline', [InvitationController::class, 'decline'])->name('invitation.decline');
 
     // ── Authenticated ──────────────────────────────────────────────────────
     Route::middleware('auth')->group(function () {
@@ -187,8 +195,25 @@ Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
                 ->name('billing.invoice.download');
 
             // ── Usage / MIS ────────────────────────────────────────────────
-Route::get('/usage', [\App\Http\Controllers\UsageController::class, 'index'])->name('usage.index');
-Route::get('/usage/export', [\App\Http\Controllers\UsageController::class, 'exportCsv'])->name('usage.export.csv');
+            Route::get('/usage',        [\App\Http\Controllers\UsageController::class, 'index'])->name('usage.index');
+            Route::get('/usage/export', [\App\Http\Controllers\UsageController::class, 'exportCsv'])->name('usage.export.csv');
+
+            // ── Team Management ───────────────────────────────────────────────────
+            Route::get('/team',                                  [TeamController::class, 'index'])->name('team.index');
+            Route::post('/team/invite',                          [TeamController::class, 'invite'])->name('team.invite');
+            Route::post('/team/invitations/{invitation}/resend', [TeamController::class, 'resendInvite'])->name('team.invitation.resend');
+            Route::delete('/team/invitations/{invitation}',      [TeamController::class, 'cancelInvite'])->name('team.invitation.cancel');
+            Route::put('/team/members/{user}/role',              [TeamController::class, 'updateRole'])->name('team.member.role');
+            Route::put('/team/members/{user}/status',            [TeamController::class, 'toggleStatus'])->name('team.member.status');
+            Route::delete('/team/members/{user}',                [TeamController::class, 'removeMember'])->name('team.member.remove');
+
+            // ── Project Members ───────────────────────────────────────────────────
+            Route::get('/projects/{project}/members',             [ProjectMemberController::class, 'index'])->name('project.members.index');
+            Route::post('/projects/{project}/members',            [ProjectMemberController::class, 'add'])->name('project.members.add');
+            Route::put('/projects/{project}/members/{member}',    [ProjectMemberController::class, 'updateRole'])->name('project.members.role');
+            Route::delete('/projects/{project}/members/{member}', [ProjectMemberController::class, 'remove'])->name('project.members.remove');
+            Route::put('/projects/{project}/restricted',          [ProjectMemberController::class, 'toggleRestricted'])->name('project.restricted.toggle');
+
         }); // end tenant middleware
     }); // end auth middleware
 
@@ -265,7 +290,7 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/usage',
             [AdminUsageController::class, 'index'])
             ->name('admin.usage.index');
-            Route::get('/usage/export', [AdminUsageController::class, 'exportCsv'])->name('admin.usage.export');
+        Route::get('/usage/export', [AdminUsageController::class, 'exportCsv'])->name('admin.usage.export');
 
     }); // end superadmin middleware
 

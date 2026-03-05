@@ -1,5 +1,13 @@
 <?php
 
+// FILE: app/Models/User.php
+// CHANGES from original:
+//   + 'is_active' added to $fillable
+//   + 'is_active' cast to boolean
+//   + teamInvitations() relationship
+//   + projectMembers() relationship
+//   + sentInvitations() relationship
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -27,15 +36,30 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password'          => 'hashed',
+        'is_active'         => 'boolean',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);
     }
 
+    /** Invitations this user sent to others */
+    public function sentInvitations()
+    {
+        return $this->hasMany(TeamInvitation::class, 'invited_by');
+    }
+
+    /** Project-level memberships for this user */
+    public function projectMembers()
+    {
+        return $this->hasMany(ProjectMember::class);
+    }
+
     // ─── Role Helpers ─────────────────────────────────────────────
+
     public function isSuperAdmin(): bool
     {
         return $this->role === 'superadmin';
@@ -49,5 +73,32 @@ class User extends Authenticatable
     public function isMember(): bool
     {
         return $this->role === 'member';
+    }
+
+    // ─── Team Helpers ─────────────────────────────────────────────
+
+    /** True if user can manage team members (admin or superadmin) */
+    public function canManageTeam(): bool
+    {
+        return $this->isAdmin() || $this->isSuperAdmin();
+    }
+
+    /** Check if user has access to a specific project */
+    public function canAccessProject(Project $project): bool
+    {
+        // Admins and project owners can always access
+        if ($this->isAdmin() || $this->isSuperAdmin()) {
+            return true;
+        }
+
+        // If project is not restricted, all tenant members can access
+        if (!$project->is_restricted) {
+            return true;
+        }
+
+        // Restricted project: check explicit membership
+        return ProjectMember::where('project_id', $project->id)
+            ->where('user_id', $this->id)
+            ->exists();
     }
 }

@@ -33,6 +33,7 @@ class ChatController extends Controller
         abort_if($project->tenant_id !== $tenant->id, 403);
         abort_if($chat->project_id !== $project->id, 404);
         abort_if($chat->tenant_id !== $tenant->id, 403);
+        abort_if(!auth()->user()->canAccessProject($project), 403);
 
         $chat->load(['messages' => function ($q) {
             $q->orderBy('created_at', 'asc')->take(50);

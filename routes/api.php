@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\FileUploadController;
 use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\PromptTemplateController;
+use App\Http\Controllers\Api\V1\TeamController as ApiTeamController;
 use App\Http\Controllers\Api\V1\TenantController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,12 +37,12 @@ Route::prefix('v1')->group(function () {
 
 
         // Knowledge Base
-Route::prefix('projects/{project}/knowledge')->group(function () {
-    Route::get('/', [Api\V1\KnowledgeBaseController::class, 'show']);
-    Route::post('/', [Api\V1\KnowledgeBaseController::class, 'store']);
-    Route::post('/documents', [Api\V1\KnowledgeBaseController::class, 'uploadDocument']);
-    Route::delete('/documents/{document}', [Api\V1\KnowledgeBaseController::class, 'destroyDocument']);
-});
+        Route::prefix('projects/{project}/knowledge')->group(function () {
+            Route::get('/',                    [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'show']);
+            Route::post('/',                   [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'store']);
+            Route::post('/documents',          [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'uploadDocument']);
+            Route::delete('/documents/{document}', [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'destroyDocument']);
+        });
 
         // ── Projects ──────────────────────────────────────────────────────
         Route::apiResource('projects', ProjectController::class);
@@ -61,13 +62,13 @@ Route::prefix('projects/{project}/knowledge')->group(function () {
                 Route::post('messages',       [MessageController::class, 'store']);
                 Route::get('messages/status', [MessageController::class, 'status']);
 
-                // ── M20: File Upload ──────────────────────────────────────
+                // File Upload
                 Route::post('upload', [FileUploadController::class, 'store'])
                     ->name('api.chats.upload');
             });
         });
 
-        // ── M20: Attachment delete (standalone, not nested under chat) ────
+        // ── Attachment delete (standalone, not nested under chat) ─────────
         Route::delete('attachments/{attachment}', [FileUploadController::class, 'destroy'])
             ->name('api.attachments.destroy');
 
@@ -90,6 +91,15 @@ Route::prefix('projects/{project}/knowledge')->group(function () {
         Route::get('billing/current-plan',                [BillingController::class, 'currentPlan']);
         Route::get('billing/invoices',                    [BillingController::class, 'invoices']);
         Route::get('billing/invoices/{payment}/download', [BillingController::class, 'downloadInvoice']);
+
+        // ── Team ──────────────────────────────────────────────────────────
+        Route::get('team',                             [ApiTeamController::class, 'index']);
+        Route::post('team/invite',                     [ApiTeamController::class, 'invite']);
+        Route::delete('team/invitations/{invitation}', [ApiTeamController::class, 'cancelInvite']);
+        Route::put('team/members/{user}/role',         [ApiTeamController::class, 'updateRole']);
+        Route::put('team/members/{user}/status',       [ApiTeamController::class, 'toggleStatus']);
+        Route::delete('team/members/{user}',           [ApiTeamController::class, 'removeMember']);
+
     });
 
 });

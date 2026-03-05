@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     LayoutDashboard, FolderOpen, CreditCard, BarChart2,
-    LogOut, Menu, X, User, Bot, FileText
+    LogOut, Menu, X, User, Bot, FileText, Users
 } from 'lucide-vue-next'
 import TokenBar from '@/Components/TokenBar.vue'
 import UpgradeModal from '@/Components/UpgradeModal.vue'
@@ -19,6 +19,10 @@ const sidebarOpen = ref(false)
 const showUpgrade = ref(false)
 
 const sidebarProjects = computed(() => page.props.sidebar_projects ?? [])
+
+const isAdmin = computed(() =>
+    auth.value?.user?.role === 'admin' || auth.value?.user?.role === 'superadmin'
+)
 
 function logout() {
     router.post(route('logout'))
@@ -86,6 +90,20 @@ function isActive(path) {
                 >
                     <FileText class="w-4 h-4 shrink-0" />
                     Templates
+                </Link>
+
+                <!-- Team — admin / superadmin only -->
+                <Link
+                    v-if="isAdmin"
+                    :href="route('team.index')"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    :class="isActive('/team')
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                    @click="sidebarOpen = false"
+                >
+                    <Users class="w-4 h-4 shrink-0" />
+                    Team
                 </Link>
             </nav>
 
@@ -167,11 +185,10 @@ function isActive(path) {
                 <NotificationBell />
             </header>
 
-
             <!-- Desktop top bar -->
-<header class="hidden md:flex items-center justify-end px-6 py-3 bg-slate-950 border-b border-slate-800 shrink-0">
-    <NotificationBell />
-</header>
+            <header class="hidden md:flex items-center justify-end px-6 py-3 bg-slate-950 border-b border-slate-800 shrink-0">
+                <NotificationBell />
+            </header>
 
             <!-- Page content -->
             <main class="flex-1 overflow-auto">

@@ -49,6 +49,7 @@ class ProjectController extends Controller
     {
         $tenant = app('tenant');
         abort_if($project->tenant_id !== $tenant->id, 403);
+        abort_if(!auth()->user()->canAccessProject($project), 403, 'You do not have access to this project.');
 
         $project->load(['chats' => function ($q) {
             $q->latest()->take(50);

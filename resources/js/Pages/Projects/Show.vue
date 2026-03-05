@@ -5,7 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 import {
     MessageSquare, Settings, Bot, Zap, Save,
     Brain, RefreshCw, Edit2, Trash2, Eye, EyeOff,
-    Plus, FolderOpen, ChevronRight, Info
+    Plus, FolderOpen, ChevronRight, Info, Users
 } from 'lucide-vue-next'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +150,16 @@ const memoryPreview = computed(() => {
                     Knowledge Base
                 </button>
                 <button
+                    @click="activeTab = 'members'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="activeTab === 'members'
+                        ? 'bg-slate-700 text-white'
+                        : 'text-slate-400 hover:text-white'"
+                >
+                    <Users class="w-4 h-4" />
+                    Members
+                </button>
+                <button
                     @click="activeTab = 'settings'"
                     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     :class="activeTab === 'settings'
@@ -269,6 +279,36 @@ const memoryPreview = computed(() => {
                         <Brain class="w-4 h-4" />
                         Manage Knowledge Base
                     </a>
+                </div>
+            </div>
+
+            <!-- ── Members Tab ────────────────────────────────────────────── -->
+            <div v-if="activeTab === 'members'">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-white font-semibold">Project Members</h2>
+                    <Link
+                        :href="route('project.members.index', project.id)"
+                        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500
+                               text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Users class="w-4 h-4" />
+                        Manage Members
+                    </Link>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                    <Users class="w-8 h-8 text-slate-700 mx-auto mb-3" />
+                    <p class="text-slate-400 text-sm mb-4">
+                        Control who can access this project and assign their roles.
+                    </p>
+                    <Link
+                        :href="route('project.members.index', project.id)"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600
+                               hover:bg-indigo-500 text-white text-sm font-medium rounded-lg
+                               transition-colors"
+                    >
+                        <Users class="w-4 h-4" />
+                        Manage Members
+                    </Link>
                 </div>
             </div>
 
