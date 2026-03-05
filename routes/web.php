@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\UsageController as AdminUsageController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ChatController;
+use App\Models\UsageLog;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\MessageController;
@@ -17,7 +18,6 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PromptTemplateController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\KnowledgeBaseController;
-use App\Models\UsageLog;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\NotificationController;
@@ -187,15 +187,8 @@ Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
                 ->name('billing.invoice.download');
 
             // ── Usage / MIS ────────────────────────────────────────────────
-            Route::get('/usage', function () {
-                $tenant = app('tenant');
-                $logs   = UsageLog::where('tenant_id', $tenant->id)
-                    ->latest()
-                    ->take(50)
-                    ->get();
-                return Inertia::render('Usage/Index', ['logs' => $logs]);
-            })->name('usage.index');
-
+Route::get('/usage', [\App\Http\Controllers\UsageController::class, 'index'])->name('usage.index');
+Route::get('/usage/export', [\App\Http\Controllers\UsageController::class, 'exportCsv'])->name('usage.export.csv');
         }); // end tenant middleware
     }); // end auth middleware
 
@@ -272,6 +265,7 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/usage',
             [AdminUsageController::class, 'index'])
             ->name('admin.usage.index');
+            Route::get('/usage/export', [AdminUsageController::class, 'exportCsv'])->name('admin.usage.export');
 
     }); // end superadmin middleware
 
