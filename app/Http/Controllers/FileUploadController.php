@@ -40,7 +40,7 @@ class FileUploadController extends Controller
                 'required',
                 'file',
                 'max:10240',   // 10 MB
-                'mimes:jpg,jpeg,png,gif,webp,txt,pdf,xls,xlsx',
+                'mimes:jpg,jpeg,png,gif,webp,txt,pdf,xls,xlsx,docx,doc',
             ],
         ]);
 

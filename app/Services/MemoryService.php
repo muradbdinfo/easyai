@@ -8,46 +8,43 @@ use App\Models\Project;
 
 class MemoryService
 {
-    /**
-     * Build the Ollama messages array for a chat.
-     *
-     * Order:
-     *   1. system_prompt (if set on project)
-     *   2. context_summary (if set on project)
-     *   3. Last 20 user/assistant messages ordered ASC
-     */
-    public function buildContext(Chat $chat, Project $project): array
+    public function __construct(private RagService $rag) {}
+
+    public function buildContext(Chat $chat, Project $project, string $userQuery = ''): array
     {
         $messages = [];
 
-        // a) System prompt
-        if (!empty($project->system_prompt)) {
-            $messages[] = [
-                'role'    => 'system',
-                'content' => $project->system_prompt,
-            ];
+        // 1. Project system prompt
+        if ($project->system_prompt) {
+            $messages[] = ['role' => 'system', 'content' => $project->system_prompt];
         }
 
-        // b) Long-term memory (context summary)
-        if (!empty($project->context_summary)) {
-            $messages[] = [
-                'role'    => 'system',
-                'content' => 'Previous context summary:' . "\n" . $project->context_summary,
-            ];
+        // 2. Context summary
+        if ($project->context_summary) {
+            $messages[] = ['role' => 'system', 'content' => "Previous context:\n" . $project->context_summary];
         }
 
-        // c) Last 20 user/assistant messages
+        // 3. Last 20 chat history messages
         $history = Message::where('chat_id', $chat->id)
             ->whereIn('role', ['user', 'assistant'])
             ->orderBy('created_at', 'asc')
-            ->take(20)
+            ->limit(20)
             ->get();
 
         foreach ($history as $msg) {
-            $messages[] = [
-                'role'    => $msg->role,
-                'content' => $msg->content,
-            ];
+            $messages[] = ['role' => $msg->role, 'content' => $msg->content];
+        }
+
+        // 4. RAG — inject into current user message (pass chat for chat-level KB)
+        if ($userQuery) {
+            $chunks = $this->rag->search($project, $userQuery, 5, $chat);
+
+            if (!empty($chunks)) {
+                $enrichedQuery = $this->rag->injectIntoUserMessage($userQuery, $chunks);
+                $messages[]    = ['role' => 'user', 'content' => $enrichedQuery];
+            } else {
+                $messages[] = ['role' => 'user', 'content' => $userQuery];
+            }
         }
 
         return $messages;

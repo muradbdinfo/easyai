@@ -25,6 +25,7 @@ class FileExtractorService
             $ext === 'txt'                                          => $this->handleText($file),
             $ext === 'pdf'                                          => $this->handlePdf($file),
             in_array($ext, ['xls', 'xlsx'])                        => $this->handleExcel($file),
+            in_array($ext, ['doc', 'docx'])         => $this->handleWord($file),
             default => throw new \InvalidArgumentException("Unsupported file type: .{$ext}"),
         };
     }
@@ -123,4 +124,41 @@ class FileExtractorService
             ];
         }
     }
+    
+    private function handleWord(UploadedFile $file): array
+{
+    try {
+        $phpWord = \PhpOffice\PhpWord\IOFactory::load($file->getPathname());
+        $text    = '';
+
+        foreach ($phpWord->getSections() as $section) {
+            foreach ($section->getElements() as $element) {
+                if (method_exists($element, 'getText')) {
+                    $text .= $element->getText() . "\n";
+                } elseif (method_exists($element, 'getElements')) {
+                    foreach ($element->getElements() as $child) {
+                        if (method_exists($child, 'getText')) {
+                            $text .= $child->getText() . ' ';
+                        }
+                    }
+                    $text .= "\n";
+                }
+            }
+        }
+
+        $text = mb_substr(trim($text), 0, 8000);
+
+        return [
+            'type'           => 'document',
+            'extracted_text' => $text,
+            'meta'           => ['chars' => mb_strlen($text)],
+        ];
+    } catch (\Throwable $e) {
+        return [
+            'type'           => 'document',
+            'extracted_text' => '[Word extraction failed: ' . $e->getMessage() . ']',
+            'meta'           => ['error' => $e->getMessage()],
+        ];
+    }
+}
 }

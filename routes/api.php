@@ -34,6 +34,15 @@ Route::prefix('v1')->group(function () {
         Route::get('tenant',       [TenantController::class, 'show']);
         Route::get('tenant/usage', [TenantController::class, 'usage']);
 
+
+        // Knowledge Base
+Route::prefix('projects/{project}/knowledge')->group(function () {
+    Route::get('/', [Api\V1\KnowledgeBaseController::class, 'show']);
+    Route::post('/', [Api\V1\KnowledgeBaseController::class, 'store']);
+    Route::post('/documents', [Api\V1\KnowledgeBaseController::class, 'uploadDocument']);
+    Route::delete('/documents/{document}', [Api\V1\KnowledgeBaseController::class, 'destroyDocument']);
+});
+
         // ── Projects ──────────────────────────────────────────────────────
         Route::apiResource('projects', ProjectController::class);
         Route::delete('projects/{project}/memory', [ProjectController::class, 'clearMemory']);

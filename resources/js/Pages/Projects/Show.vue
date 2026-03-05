@@ -14,7 +14,7 @@ import {
 const props = defineProps({
     project:       Object,
     chats:         { type: Array, default: () => [] },
-    ollama_models: { type: Array, default: () => [] },   // ← fixed: was "models"
+    ollama_models: { type: Array, default: () => [] },
 })
 
 // Fallback: also pull from global Inertia share if prop is empty
@@ -34,7 +34,7 @@ const settingsForm = useForm({
     name:          props.project.name,
     description:   props.project.description   ?? '',
     system_prompt: props.project.system_prompt ?? '',
-    model:         props.project.model         ?? ollamaModels.value[0] ?? '',  // ← fixed: was 'llama3'
+    model:         props.project.model         ?? ollamaModels.value[0] ?? '',
 })
 
 function saveSettings() {
@@ -140,6 +140,16 @@ const memoryPreview = computed(() => {
                     </span>
                 </button>
                 <button
+                    @click="activeTab = 'kb'"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="activeTab === 'kb'
+                        ? 'bg-slate-700 text-white'
+                        : 'text-slate-400 hover:text-white'"
+                >
+                    <Brain class="w-4 h-4" />
+                    Knowledge Base
+                </button>
+                <button
                     @click="activeTab = 'settings'"
                     class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     :class="activeTab === 'settings'
@@ -240,6 +250,28 @@ const memoryPreview = computed(() => {
                 </div>
             </div>
 
+            <!-- ── Knowledge Base Tab ─────────────────────────────────────── -->
+            <div v-if="activeTab === 'kb'">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-white font-semibold">Knowledge Base</h2>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
+                    <Brain class="w-8 h-8 text-slate-700 mx-auto mb-3" />
+                    <p class="text-slate-400 text-sm mb-4">
+                        Store documents and context that the AI can reference across all chats.
+                    </p>
+                    <a
+                        :href="route('kb.index', project.id)"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600
+                               hover:bg-indigo-500 text-white text-sm font-medium rounded-lg
+                               transition-colors"
+                    >
+                        <Brain class="w-4 h-4" />
+                        Manage Knowledge Base
+                    </a>
+                </div>
+            </div>
+
             <!-- ── Settings Tab ───────────────────────────────────────────── -->
             <div v-if="activeTab === 'settings'" class="space-y-6">
 
@@ -308,7 +340,7 @@ const memoryPreview = computed(() => {
                             </p>
                         </div>
 
-                        <!-- ── AI Model selector ── -->
+                        <!-- AI Model selector -->
                         <div>
                             <label class="block text-sm mb-1.5">
                                 <div class="flex items-center gap-1.5">
@@ -316,8 +348,6 @@ const memoryPreview = computed(() => {
                                     <span class="text-slate-400">AI Model</span>
                                 </div>
                             </label>
-
-                            <!-- Dropdown: iterates ollamaModels computed (from prop OR global share) -->
                             <select
                                 v-model="settingsForm.model"
                                 class="w-full bg-slate-800 border border-slate-700 rounded-lg
@@ -332,13 +362,10 @@ const memoryPreview = computed(() => {
                                     {{ m }}
                                 </option>
                             </select>
-
-                            <!-- Show current saved model for debugging -->
                             <p class="text-slate-600 text-xs mt-1 flex items-center gap-1">
                                 <Info class="w-3 h-3" />
                                 Currently saved: <span class="text-indigo-400 ml-1">{{ project.model }}</span>
                             </p>
-
                             <p v-if="settingsForm.errors.model"
                                class="text-red-400 text-xs mt-1">
                                 {{ settingsForm.errors.model }}
@@ -370,7 +397,7 @@ const memoryPreview = computed(() => {
                     </form>
                 </div>
 
-                <!-- ── Project Memory ─────────────────────────────────────── -->
+                <!-- Project Memory -->
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center gap-2">

@@ -16,6 +16,7 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PromptTemplateController;
 use App\Http\Controllers\StreamController;
+use App\Http\Controllers\KnowledgeBaseController;
 use App\Models\UsageLog;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
@@ -60,6 +61,23 @@ Route::domain('easyai.local')->group(function () {
             Route::get('/notifications',            [NotificationController::class, 'index'])->name('notifications.index');
             Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
             Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+
+
+// Project-level Knowledge Base
+Route::prefix('projects/{project}/knowledge')->group(function () {
+    Route::get('/',                   [KnowledgeBaseController::class, 'index'])->name('kb.index');
+    Route::post('/',                  [KnowledgeBaseController::class, 'store'])->name('kb.store');
+    Route::post('/documents',         [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.upload');
+    Route::delete('/documents/{document}', [KnowledgeBaseController::class, 'destroyDocument'])->name('kb.document.destroy');
+});
+
+// Chat-level Knowledge Base
+Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
+    Route::get('/',           [KnowledgeBaseController::class, 'chatIndex'])->name('kb.chat.index');
+    Route::post('/',          [KnowledgeBaseController::class, 'chatStore'])->name('kb.chat.store');
+    Route::post('/documents', [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.chat.upload');
+});
+
 
             // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);

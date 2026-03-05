@@ -54,4 +54,8 @@ class Chat extends Model
     {
         return $this->status === 'closed';
     }
+
+    public function knowledgeBases() {
+    return $this->hasMany(\App\Models\KnowledgeBase::class);
+}
 }

@@ -34,4 +34,10 @@ class Project extends Model
     {
         return $this->hasMany(Chat::class);
     }
+
+    public function knowledgeBases()
+{
+    return $this->hasMany(\App\Models\KnowledgeBase::class);
+}
+
 }
