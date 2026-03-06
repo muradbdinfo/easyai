@@ -87,4 +87,25 @@ class Tenant extends Model
             ? asset('storage/' . $this->logo_path)
             : null;
     }
+
+     public function tenantAddons()
+    {
+        return $this->hasMany(TenantAddon::class);
+    }
+
+    public function activeAddons()
+    {
+        return $this->hasMany(TenantAddon::class)->where('status', 'active');
+    }
+
+    public function hasAddon(string $slug): bool
+    {
+        return $this->activeAddons()
+            ->whereHas('addon', fn($q) => $q->where('slug', $slug))
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            })
+            ->exists();
+    }
 }

@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             TenantSeeder::class,
             ProjectSeeder::class,
             PromptTemplateSeeder::class,
+            AddonSeeder::class,
         ]);
     }
 }
