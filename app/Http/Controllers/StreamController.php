@@ -168,12 +168,13 @@ class StreamController extends Controller
             // ── Final done event ───────────────────────────────────────────
             $freshChat = $chat->fresh();
 
-            echo 'data: ' . json_encode([
-                'done'         => true,
-                'message_id'   => $assistantMsg->id,
-                'chat_status'  => $freshChat->status,
-                'total_tokens' => $freshChat->total_tokens,
-            ]) . "\n\n";
+echo 'data: ' . json_encode([
+    'done'         => true,
+    'message_id'   => $assistantMsg->id,
+    'chat_status'  => $freshChat->status,
+    'total_tokens' => $freshChat->total_tokens,
+    'chat_title'   => $freshChat->title,
+]) . "\n\n";
 
             flush();
 

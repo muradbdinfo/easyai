@@ -1,7 +1,4 @@
 <script setup>
-// FILE: resources/js/Pages/Chats/Show.vue
-// M19: Replaced polling with SSE streaming. All other features unchanged.
-
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
@@ -36,6 +33,7 @@ const showExport    = ref(false)
 const copied        = ref(null)
 const chatStatus    = ref(props.chat.status)
 const chatTokens    = ref(props.chat.total_tokens ?? 0)
+const chatTitle  = ref(props.chat.title ?? 'New Chat')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SSE streaming state  (replaces pollTimer)
@@ -99,25 +97,43 @@ function startStream() {
             }
 
             // Stream complete
-            if (data.done) {
-                messages.value.push({
-                    id:         data.message_id,
-                    role:       'assistant',
-                    content:    streamingContent.value,
-                    model:      props.project.model,
-                    created_at: new Date().toISOString(),
-                })
+          if (data.done) {
+    messages.value.push({
+        id:         data.message_id,
+        role:       'assistant',
+        content:    streamingContent.value,
+        model:      props.project.model,
+        created_at: new Date().toISOString(),
+    })
 
-                streamingContent.value = ''
-                isStreaming.value      = false
-                sending.value          = false
-                chatStatus.value       = data.chat_status
-                chatTokens.value       = data.total_tokens
+    streamingContent.value = ''
+    isStreaming.value      = false
+    sending.value          = false
+    chatStatus.value       = data.chat_status
+    chatTokens.value       = data.total_tokens
 
-                eventSource.close()
-                eventSource = null
-                scrollToBottom()
-            }
+    // Update title if already generated
+    if (data.chat_title && data.chat_title !== 'New Chat') {
+        chatTitle.value = data.chat_title
+        router.reload({ only: ['sidebar_projects'] })
+    } else {
+        // Job still running — poll once after 3s
+        setTimeout(() => {
+            axios.get(
+                route('projects.chats.messages.index', [props.project.id, props.chat.id])
+            ).then(res => {
+                if (res.data.chat?.title && res.data.chat.title !== 'New Chat') {
+                    chatTitle.value = res.data.chat.title
+                }
+                router.reload({ only: ['sidebar_projects'] })
+            })
+        }, 3000)
+    }
+
+    eventSource.close()
+    eventSource = null
+    scrollToBottom()
+}
         } catch { /* ignore JSON parse errors */ }
     }
 
@@ -338,7 +354,7 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
 </script>
 
 <template>
-    <AppLayout :title="chat.title ?? 'Chat'">
+<AppLayout :title="chatTitle">
         <div class="flex flex-col h-[calc(100vh-64px)] bg-slate-950">
 
             <!-- ── Header ── -->
@@ -347,7 +363,7 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                     <ChevronRight class="w-4 h-4 text-slate-600 shrink-0" />
                     <span class="text-slate-400 text-sm truncate">{{ project.name }}</span>
                     <ChevronRight class="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                    <span class="text-white text-sm font-medium truncate">{{ chat.title ?? 'New Chat' }}</span>
+                    <span class="text-white text-sm font-medium truncate">{{ chatTitle }}</span>
                     <div class="flex items-center gap-1 px-2 py-0.5 bg-slate-800 rounded-full ml-2 shrink-0">
                         <Bot class="w-3 h-3 text-indigo-400" />
                         <span class="text-xs text-slate-400">{{ project.model ?? 'llama3' }}</span>
