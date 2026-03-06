@@ -14,7 +14,7 @@ const auth        = page.props.auth
 const sidebarOpen = ref(false)
 
 function logout() {
-    router.post(route('logout'))
+    router.post(route('admin.logout'))
 }
 
 function isActive(path) {

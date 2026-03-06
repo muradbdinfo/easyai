@@ -1,5 +1,4 @@
 <?php
-
 // FILE: app/Http/Middleware/HandleInertiaRequests.php
 
 namespace App\Http\Middleware;
@@ -47,16 +46,18 @@ class HandleInertiaRequests extends Middleware
             ];
         }
 
-        // Sidebar projects with their chats
-$sidebarProjects = Project::where('tenant_id', $tenant->id)
-    ->with(['chats' => function ($q) {
-        $q->orderBy('updated_at', 'desc')->take(10);
-    }])
-    ->orderByRaw('is_default DESC')   // General always first
-    ->orderBy('created_at', 'asc')
-    ->take(20)
-    ->get()
-    ->toArray();
+        // Sidebar projects with their chats (null-safe for superadmin)
+        $sidebarProjects = $tenant
+            ? Project::where('tenant_id', $tenant->id)
+                ->with(['chats' => function ($q) {
+                    $q->orderBy('updated_at', 'desc')->take(10);
+                }])
+                ->orderByRaw('is_default DESC')
+                ->orderBy('created_at', 'asc')
+                ->take(20)
+                ->get()
+                ->toArray()
+            : [];
 
         // Templates (shared in context for template picker in chat)
         $templates = [];
@@ -85,11 +86,11 @@ $sidebarProjects = Project::where('tenant_id', $tenant->id)
                     'role'  => $user->role,
                 ] : null,
             ],
-            'tenant'        => $tenant,
-            'quota'         => $quota,
+            'tenant'           => $tenant,
+            'quota'            => $quota,
             'sidebar_projects' => $sidebarProjects,
-            'templates'     => $templates,
-            'ollama_models' => array_values($ollamaModels),
+            'templates'        => $templates,
+            'ollama_models'    => array_values($ollamaModels),
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),

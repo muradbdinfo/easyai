@@ -243,6 +243,10 @@ Route::domain('admin.easyai.local')->group(function () {
     // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
 
+     // ── ADD THIS LINE ──────────────────────────────────────────────────
+        Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
+
+
         Route::get('/', [AdminDashboardController::class, 'index'])
             ->name('admin.dashboard');
 
