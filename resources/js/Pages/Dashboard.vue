@@ -228,16 +228,16 @@ const quotaColor = computed(() => {
                     </div>
 
                     <!-- Quick actions -->
-                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                        <h2 class="text-white font-semibold text-sm mb-3">Quick Start</h2>
-                        <Link
-                            :href="route('projects.index')"
-                            class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                        >
-                            <Plus class="w-4 h-4" />
-                            New Project
-                        </Link>
-                    </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <h2 class="text-white font-semibold text-sm mb-3">Quick Start</h2>
+    <button
+        @click="router.get(route('chat.new'))"
+        class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+    >
+        <Plus class="w-4 h-4" />
+        New Chat
+    </button>
+</div>
 
                 </div>
             </div>

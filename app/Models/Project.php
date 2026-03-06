@@ -24,11 +24,12 @@ class Project extends Model
         'system_prompt',
         'context_summary',
         'model',
-        'is_restricted',
+        'is_restricted','is_default', 
     ];
 
     protected $casts = [
         'is_restricted' => 'boolean',
+        'is_default'    => 'boolean',
     ];
 
     // ─── Relationships ────────────────────────────────────────────

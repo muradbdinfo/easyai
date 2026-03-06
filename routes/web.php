@@ -62,6 +62,9 @@ Route::domain('easyai.local')->group(function () {
         // ── Auth + Tenant ──────────────────────────────────────────────────
         Route::middleware('tenant')->group(function () {
 
+        // Standalone new chat (uses General project)
+Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
+
             // Dashboard
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -203,9 +206,9 @@ Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
             Route::post('/team/invite',                          [TeamController::class, 'invite'])->name('team.invite');
             Route::post('/team/invitations/{invitation}/resend', [TeamController::class, 'resendInvite'])->name('team.invitation.resend');
             Route::delete('/team/invitations/{invitation}',      [TeamController::class, 'cancelInvite'])->name('team.invitation.cancel');
-            Route::put('/team/members/{user}/role',              [TeamController::class, 'updateRole'])->name('team.member.role');
-            Route::put('/team/members/{user}/status',            [TeamController::class, 'toggleStatus'])->name('team.member.status');
-            Route::delete('/team/members/{user}',                [TeamController::class, 'removeMember'])->name('team.member.remove');
+Route::put('/team/members/{member}/role',              [TeamController::class, 'updateRole'])->name('team.member.role');
+Route::put('/team/members/{member}/status',            [TeamController::class, 'toggleStatus'])->name('team.member.status');
+Route::delete('/team/members/{member}',                [TeamController::class, 'removeMember'])->name('team.member.remove');
 
             // ── Project Members ───────────────────────────────────────────────────
             Route::get('/projects/{project}/members',             [ProjectMemberController::class, 'index'])->name('project.members.index');

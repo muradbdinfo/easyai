@@ -48,8 +48,7 @@ class AuthController extends Controller
         return Inertia::render('Auth/Register');
     }
 
-    // ─── Register ─────────────────────────────────────────────────
-public function register(Request $request)
+    public function register(Request $request)
 {
     $request->validate([
         'name'     => ['required', 'string', 'max:255'],
@@ -57,27 +56,34 @@ public function register(Request $request)
         'password' => ['required', 'confirmed', 'min:8'],
     ]);
 
-    // Get Starter plan
     $plan = \App\Models\Plan::where('name', 'Starter')->first();
 
-    // Create tenant
     $tenant = \App\Models\Tenant::create([
-        'name'        => $request->name . "'s Workspace",
-        'slug'        => \Illuminate\Support\Str::slug($request->name . '-' . uniqid()),
-        'plan_id'     => $plan->id,
-        'token_quota' => $plan->monthly_token_limit,
-        'tokens_used' => 0,
-        'status'      => 'trial',
+        'name'          => $request->name . "'s Workspace",
+        'slug'          => \Illuminate\Support\Str::slug($request->name . '-' . uniqid()),
+        'plan_id'       => $plan->id,
+        'token_quota'   => $plan->monthly_token_limit,
+        'tokens_used'   => 0,
+        'status'        => 'trial',
         'trial_ends_at' => now()->addDays(14),
     ]);
 
-    // Create user linked to tenant
     $user = \App\Models\User::create([
         'name'      => $request->name,
         'email'     => $request->email,
         'password'  => $request->password,
         'role'      => 'admin',
         'tenant_id' => $tenant->id,
+    ]);
+
+    // Create default General project for standalone chats
+    \App\Models\Project::create([
+        'tenant_id'   => $tenant->id,
+        'user_id'     => $user->id,
+        'name'        => 'General',
+        'description' => 'Default workspace for quick chats.',
+        'model'       => config('ollama.model', 'llama3.2:latest'),
+        'is_default'  => true,
     ]);
 
     Auth::login($user);

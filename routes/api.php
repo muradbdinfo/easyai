@@ -96,9 +96,9 @@ Route::prefix('v1')->group(function () {
         Route::get('team',                             [ApiTeamController::class, 'index']);
         Route::post('team/invite',                     [ApiTeamController::class, 'invite']);
         Route::delete('team/invitations/{invitation}', [ApiTeamController::class, 'cancelInvite']);
-        Route::put('team/members/{user}/role',         [ApiTeamController::class, 'updateRole']);
-        Route::put('team/members/{user}/status',       [ApiTeamController::class, 'toggleStatus']);
-        Route::delete('team/members/{user}',           [ApiTeamController::class, 'removeMember']);
+Route::put('team/members/{member}/role',         [ApiTeamController::class, 'updateRole']);
+Route::put('team/members/{member}/status',       [ApiTeamController::class, 'toggleStatus']);
+Route::delete('team/members/{member}',           [ApiTeamController::class, 'removeMember']);
 
     });
 

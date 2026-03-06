@@ -9,6 +9,28 @@ use Inertia\Inertia;
 
 class ChatController extends Controller
 {
+
+
+public function createQuick(Request $request)
+{
+    $tenant = app('tenant');
+
+    $project = \App\Models\Project::where('tenant_id', $tenant->id)
+        ->where('is_default', true)
+        ->firstOrFail();
+
+    $chat = Chat::create([
+        'project_id' => $project->id,
+        'user_id'    => $request->user()->id,
+        'tenant_id'  => $tenant->id,
+        'title'      => 'New Chat',
+        'status'     => 'open',
+    ]);
+
+    return redirect()->route('projects.chats.show', [$project->id, $chat->id]);
+}
+
+
     public function store(Request $request, Project $project)
     {
         $tenant = app('tenant');

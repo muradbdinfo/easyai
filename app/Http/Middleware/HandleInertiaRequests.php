@@ -48,17 +48,15 @@ class HandleInertiaRequests extends Middleware
         }
 
         // Sidebar projects with their chats
-        $sidebarProjects = [];
-        if ($user && $tenant) {
-            $sidebarProjects = Project::where('tenant_id', $tenant->id)
-                ->with(['chats' => function ($q) {
-                    $q->orderBy('updated_at', 'desc')->take(10);
-                }])
-                ->latest()
-                ->take(20)
-                ->get()
-                ->toArray();
-        }
+$sidebarProjects = Project::where('tenant_id', $tenant->id)
+    ->with(['chats' => function ($q) {
+        $q->orderBy('updated_at', 'desc')->take(10);
+    }])
+    ->orderByRaw('is_default DESC')   // General always first
+    ->orderBy('created_at', 'asc')
+    ->take(20)
+    ->get()
+    ->toArray();
 
         // Templates (shared in context for template picker in chat)
         $templates = [];
@@ -89,7 +87,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'tenant'        => $tenant,
             'quota'         => $quota,
-            'sidebar'       => $sidebarProjects,
+            'sidebar_projects' => $sidebarProjects,
             'templates'     => $templates,
             'ollama_models' => array_values($ollamaModels),
             'flash' => [

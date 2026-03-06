@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     FolderOpen, MessageSquare, Plus, ChevronDown,
-    ChevronRight, Trash2
+    ChevronRight, Trash2, Zap
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -22,6 +22,10 @@ function toggleProject(id) {
 
 function isExpanded(id) {
     return !!expandedProjects.value[id]
+}
+
+function newChat() {
+    router.get(route('chat.new'))
 }
 
 function createChat(projectId) {
@@ -44,6 +48,16 @@ function isProjectActive(projectId) {
 
 <template>
     <div class="px-3 py-2">
+
+        <!-- New Chat button -->
+        <button
+            @click="newChat"
+            class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-3"
+        >
+            <Plus class="w-3.5 h-3.5" />
+            New Chat
+        </button>
+
         <!-- Section header -->
         <div class="flex items-center justify-between px-2 mb-2">
             <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -81,12 +95,13 @@ function isProjectActive(projectId) {
                             :is="isExpanded(project.id) ? ChevronDown : ChevronRight"
                             class="w-3 h-3 text-slate-600 shrink-0"
                         />
-                        <FolderOpen class="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <Zap v-if="project.is_default" class="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <FolderOpen v-else class="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span
                             class="text-xs font-medium truncate"
                             :class="isProjectActive(project.id) ? 'text-white' : 'text-slate-400'"
                         >
-                            {{ project.name }}
+                            {{ project.is_default ? 'General' : project.name }}
                         </span>
                     </button>
 
