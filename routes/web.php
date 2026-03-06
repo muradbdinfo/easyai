@@ -28,7 +28,14 @@ use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\InvitationController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\AddonController;
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\Admin\AddonController as AdminAddonController;
+
 use Inertia\Inertia;
+
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -66,6 +73,23 @@ Route::post('/contact', [LandingController::class, 'send'])->name('landing.conta
 
         // ── Auth + Tenant ──────────────────────────────────────────────────
         Route::middleware('tenant')->group(function () {
+
+
+// ── Add-on store (all tenants can view & purchase) ───────────────────────
+Route::get('/addons', [AddonController::class, 'index'])->name('addons.index');
+Route::post('/addons/{addon}/purchase', [AddonController::class, 'purchase'])->name('addons.purchase');
+Route::delete('/addons/{addon}/cancel', [AddonController::class, 'cancel'])->name('addons.cancel');
+
+// ── Agent routes (requires agent-ai addon) ───────────────────────────────
+Route::middleware('addon:agent-ai')->group(function () {
+    Route::post('/projects/{project}/chats/{chat}/agent/run', [AgentController::class, 'run'])
+        ->name('agent.run');
+    Route::get('/projects/{project}/chats/{chat}/agent/{agentRun}/steps', [AgentController::class, 'steps'])
+        ->name('agent.steps');
+    Route::post('/projects/{project}/chats/{chat}/agent/{agentRun}/stop', [AgentController::class, 'stop'])
+        ->name('agent.stop');
+});
+
 
             // Standalone new chat (uses General project)
             Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
@@ -256,6 +280,15 @@ Route::domain(config('domains.admin'))->group(function () {
 
     // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
+
+
+    Route::get('/addons',                          [AdminAddonController::class, 'index'])->name('admin.addons.index');
+Route::post('/addons',                         [AdminAddonController::class, 'store'])->name('admin.addons.store');
+Route::put('/addons/{addon}',                  [AdminAddonController::class, 'update'])->name('admin.addons.update');
+Route::delete('/addons/{addon}',               [AdminAddonController::class, 'destroy'])->name('admin.addons.destroy');
+Route::put('/addons/payments/{payment}/approve', [AdminAddonController::class, 'approvePurchase'])->name('admin.addons.approve');
+Route::delete('/addons/tenant/{tenantAddon}/revoke', [AdminAddonController::class, 'revoke'])->name('admin.addons.revoke');
+
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
 

@@ -68,6 +68,7 @@ class Kernel extends HttpKernel
 
          'tenant'     => \App\Http\Middleware\TenantMiddleware::class,
     'superadmin' => \App\Http\Middleware\SuperAdminMiddleware::class,
+    'addon' => \App\Http\Middleware\AddonMiddleware::class,
     
     ];
 }

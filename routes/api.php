@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\PromptTemplateController;
 use App\Http\Controllers\Api\V1\TeamController as ApiTeamController;
 use App\Http\Controllers\Api\V1\TenantController;
+use App\Http\Controllers\Api\V1\AddonController as ApiAddonController;
+use App\Http\Controllers\Api\V1\AgentController as ApiAgentController;
+
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -26,6 +29,20 @@ Route::prefix('v1')->group(function () {
         \App\Http\Middleware\TenantMiddleware::class,
         'throttle:60,1',
     ])->group(function () {
+
+
+    // ── Add-on API ────────────────────────────────────────────────────────────
+Route::get('addons', [ApiAddonController::class, 'index']);
+Route::post('addons/{addon}/purchase', [ApiAddonController::class, 'purchase']);
+Route::delete('addons/{addon}/cancel', [ApiAddonController::class, 'cancel']);
+
+// ── Agent API (requires agent-ai addon) ──────────────────────────────────
+Route::middleware('addon:agent-ai')->group(function () {
+    Route::post('projects/{project}/chats/{chat}/agent/run', [ApiAgentController::class, 'run']);
+    Route::get('projects/{project}/chats/{chat}/agent/{agentRun}/steps', [ApiAgentController::class, 'steps']);
+    Route::post('projects/{project}/chats/{chat}/agent/{agentRun}/stop', [ApiAgentController::class, 'stop']);
+});
+
 
         // ── Auth ──────────────────────────────────────────────────────────
         Route::post('auth/logout', [AuthController::class, 'logout']);

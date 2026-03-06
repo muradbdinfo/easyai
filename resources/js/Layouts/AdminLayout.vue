@@ -2,7 +2,7 @@
 // FILE: resources/js/Layouts/AdminLayout.vue
 import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
-import { LayoutDashboard, Users, CreditCard, BarChart2, Settings, Shield, LogOut, Menu, X, Bell, Activity, Package } from 'lucide-vue-next'
+import { LayoutDashboard, Users, CreditCard, BarChart2, Settings, Shield, LogOut, Menu, X, Bell, Activity, Package, PuzzleIcon } from 'lucide-vue-next'
 
 defineProps({ title: String })
 
@@ -15,6 +15,7 @@ const navItems = [
     { label:'Dashboard', icon:LayoutDashboard, name:'admin.dashboard'      },
     { label:'Tenants',   icon:Users,           name:'admin.tenants.index'  },
     { label:'Plans',     icon:Package,         name:'admin.plans.index'    },
+    { label:'Add-ons',   icon:PuzzleIcon,      name:'admin.addons.index'   },
     { label:'Payments',  icon:CreditCard,      name:'admin.payments.index' },
     { label:'Usage',     icon:BarChart2,       name:'admin.usage.index'    },
     { label:'Settings',  icon:Settings,        name:'admin.settings.index' },
