@@ -24,6 +24,8 @@ const isAdmin = computed(() =>
     auth.value?.user?.role === 'admin' || auth.value?.user?.role === 'superadmin'
 )
 
+const tenant = computed(() => page.props.tenant)
+
 function logout() {
     router.post(route('logout'))
 }
@@ -42,17 +44,23 @@ function isActive(path) {
             class="fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 md:translate-x-0 md:static md:flex shrink-0"
         >
             <!-- Logo -->
-            <div class="flex items-center gap-3 px-5 py-5 border-b border-slate-800 shrink-0">
-                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-                    <Bot class="w-5 h-5 text-white" />
-                </div>
-                <div class="min-w-0">
-                    <p class="text-white font-bold text-sm">EasyAI</p>
-                    <p class="text-slate-500 text-xs truncate">
-                        {{ auth?.user?.name ?? 'Workspace' }}
-                    </p>
-                </div>
-            </div>
+      <!-- Logo -->
+<div class="flex items-center gap-3 px-5 py-5 border-b border-slate-800 shrink-0">
+<div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+<img v-if="tenant?.logo_path"
+:src="`/storage/${tenant.logo_path}`"
+class="w-full h-full object-contain p-1" />
+<Bot v-else class="w-5 h-5 text-white" />
+</div>
+<div class="min-w-0">
+<p class="text-white font-bold text-sm truncate">
+{{ tenant?.name ?? 'EasyAI' }}
+</p>
+<p class="text-slate-500 text-xs truncate">
+{{ auth?.user?.name ?? 'Workspace' }}
+</p>
+</div>
+</div>
 
             <!-- Top nav links -->
             <nav class="px-3 pt-4 pb-2 space-y-0.5 shrink-0">
