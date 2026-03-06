@@ -1,169 +1,146 @@
 <?php
 
-// FILE: app/Http/Controllers/SettingsController.php
-
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class SettingsController extends Controller
 {
-    // ── index ──────────────────────────────────────────────────────
     public function index()
     {
-        $user   = auth()->user();
-        $tenant = app('tenant');
-
-        $tokens = $user->tokens()
-            ->select('id', 'name', 'last_used_at', 'created_at')
-            ->latest()
-            ->get();
-
-        return Inertia::render('Settings/Index', [
-            'user'   => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
-                'role'  => $user->role,
-                'notification_preferences' => $user->getNotificationPreferences(),
+        return Inertia::render('Admin/Settings/Index', [
+            'platform' => [
+                'app_name'      => \App\Models\Setting::get('app_name', config('app.name')),
+                'support_email' => \App\Models\Setting::get('support_email', env('MAIL_FROM_ADDRESS', '')),
+                'logo_url'      => \App\Models\Setting::get('logo_url'),
             ],
-            'tenant' => [
-                'id'            => $tenant->id,
-                'name'          => $tenant->name,
-                'slug'          => $tenant->slug,
-                'logo_url'      => $tenant->logoUrl(),
-                'default_model' => $tenant->default_model ?? 'llama3',
+            'ollama' => [
+                'url'   => \App\Models\Setting::get('ollama_url', config('ollama.url')),
+                'model' => \App\Models\Setting::get('ollama_model', config('ollama.model')),
             ],
-            'api_tokens'     => $tokens,
-            'ollama_models'  => config('ollama.available_models', ['llama3', 'mistral', 'codellama']),
+            'mail' => [
+                'host'       => env('MAIL_HOST', ''),
+                'port'       => env('MAIL_PORT', 587),
+                'username'   => env('MAIL_USERNAME', ''),
+                'from_name'  => env('MAIL_FROM_NAME', ''),
+                'from_email' => env('MAIL_FROM_ADDRESS', ''),
+            ],
+            'landing' => [
+                'primary_color' => \App\Models\Setting::get('landing_primary_color', '#6366f1'),
+                'hero_title'    => \App\Models\Setting::get('landing_hero_title', 'Your Private AI Workspace'),
+                'hero_subtitle' => \App\Models\Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace for your team.'),
+                'hero_cta'      => \App\Models\Setting::get('landing_hero_cta', 'Start Free Trial'),
+                'announcement'  => \App\Models\Setting::get('landing_announcement', ''),
+                'show_pricing'  => \App\Models\Setting::get('landing_show_pricing', '1') === '1',
+                'show_contact'  => \App\Models\Setting::get('landing_show_contact', '1') === '1',
+                'contact_email' => \App\Models\Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', '')),
+                'footer_text'   => \App\Models\Setting::get('landing_footer_text', 'EasyAI — Self-Hosted AI Workspace'),
+                'features'      => json_decode(\App\Models\Setting::get('landing_features', '[]'), true) ?: [],
+                'faq'           => json_decode(\App\Models\Setting::get('landing_faq', '[]'), true) ?: [],
+            ],
         ]);
     }
 
-    // ── updateProfile ──────────────────────────────────────────────
-    public function updateProfile(Request $request)
+    public function updatePlatform(Request $request)
     {
-        $user = auth()->user();
-
-        $validated = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-        ]);
-
-        $user->update($validated);
-
-        return back()->with('success', 'Profile updated.');
+        $request->validate(['app_name' => ['required','string','max:100'], 'support_email' => ['required','email']]);
+        \App\Models\Setting::set('app_name', $request->app_name);
+        \App\Models\Setting::set('support_email', $request->support_email);
+        return back()->with('success', 'Platform settings saved.');
     }
 
-    // ── updatePassword ─────────────────────────────────────────────
-    public function updatePassword(Request $request)
-    {
-        $request->validate([
-            'current_password' => ['required'],
-            'password'         => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
-
-        if (!Hash::check($request->current_password, auth()->user()->password)) {
-            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
-        }
-
-        auth()->user()->update(['password' => $request->password]);
-
-        return back()->with('success', 'Password updated.');
-    }
-
-    // ── updateWorkspace ────────────────────────────────────────────
-    public function updateWorkspace(Request $request)
-    {
-        $tenant = app('tenant');
-
-        // Only admin can update workspace settings
-        abort_if(!auth()->user()->canManageTeam(), 403);
-
-        $validated = $request->validate([
-            'name'          => ['required', 'string', 'max:255'],
-            'default_model' => ['required', 'string', 'max:100'],
-        ]);
-
-        $tenant->update($validated);
-
-        return back()->with('success', 'Workspace settings updated.');
-    }
-
-    // ── uploadLogo ─────────────────────────────────────────────────
     public function uploadLogo(Request $request)
     {
-        abort_if(!auth()->user()->canManageTeam(), 403);
-
-        $request->validate([
-            'logo' => ['required', 'image', 'mimes:png,jpg,jpeg,svg,webp', 'max:2048'],
-        ]);
-
-        $tenant = app('tenant');
-
-        // Delete old logo
-        if ($tenant->logo_path) {
-            Storage::disk('public')->delete($tenant->logo_path);
-        }
-
+        $request->validate(['logo' => ['required','image','mimes:png,jpg,jpeg,svg,webp','max:2048']]);
+        $old = \App\Models\Setting::get('logo_path');
+        if ($old) Storage::disk('public')->delete($old);
         $path = $request->file('logo')->store('logos', 'public');
-        $tenant->update(['logo_path' => $path]);
-
-        return back()->with('success', 'Logo updated.')->with('logo_url', asset('storage/' . $path));
+        \App\Models\Setting::set('logo_path', $path);
+        \App\Models\Setting::set('logo_url', asset('storage/' . $path));
+        return back()->with('success', 'Logo updated.');
     }
 
-    // ── deleteLogo ─────────────────────────────────────────────────
     public function deleteLogo()
     {
-        abort_if(!auth()->user()->canManageTeam(), 403);
-
-        $tenant = app('tenant');
-
-        if ($tenant->logo_path) {
-            Storage::disk('public')->delete($tenant->logo_path);
-            $tenant->update(['logo_path' => null]);
-        }
-
+        $path = \App\Models\Setting::get('logo_path');
+        if ($path) Storage::disk('public')->delete($path);
+        \App\Models\Setting::set('logo_path', null);
+        \App\Models\Setting::set('logo_url', null);
         return back()->with('success', 'Logo removed.');
     }
 
-    // ── createApiKey ───────────────────────────────────────────────
-    public function createApiKey(Request $request)
+    public function updateOllama(Request $request)
+    {
+        $request->validate(['url' => ['required','url'], 'model' => ['required','string']]);
+        \App\Models\Setting::set('ollama_url', $request->url);
+        \App\Models\Setting::set('ollama_model', $request->model);
+        return back()->with('success', 'Ollama settings saved.');
+    }
+
+    public function testOllama()
+    {
+        try {
+            $url  = \App\Models\Setting::get('ollama_url') ?? config('ollama.url');
+            $resp = Http::timeout(5)->get($url . '/api/tags');
+            return response()->json(['success' => $resp->ok(), 'message' => $resp->ok() ? 'Connected.' : 'Failed.']);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function updateMail(Request $request)
     {
         $request->validate([
-            'name' => ['required', 'string', 'max:100'],
+            'host' => ['required','string'], 'port' => ['required','integer'],
+            'username' => ['nullable','string'], 'password' => ['nullable','string'],
+            'from_name' => ['required','string'], 'from_email' => ['required','email'],
         ]);
-
-        $token = auth()->user()->createToken($request->name);
-
-        return back()
-            ->with('success', 'API key created.')
-            ->with('new_token', $token->plainTextToken);
+        foreach ($request->only('host','port','username','from_name','from_email') as $k => $v) {
+            \App\Models\Setting::set('mail_'.$k, $v);
+        }
+        if ($request->filled('password')) \App\Models\Setting::set('mail_password', $request->password);
+        return back()->with('success', 'Mail settings saved.');
     }
 
-    // ── deleteApiKey ───────────────────────────────────────────────
-    public function deleteApiKey(int $id)
+    public function testMail(Request $request)
     {
-        auth()->user()->tokens()->where('id', $id)->delete();
-
-        return back()->with('success', 'API key revoked.');
+        $request->validate(['email' => ['required','email']]);
+        try {
+            Mail::raw('EasyAI mail test.', fn ($m) => $m->to($request->email)->subject('EasyAI Mail Test'));
+            return back()->with('success', 'Test email sent to ' . $request->email);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['email' => 'Mail failed: ' . $e->getMessage()]);
+        }
     }
 
-    // ── updateNotifications ────────────────────────────────────────
-    public function updateNotifications(Request $request)
+    public function updateLanding(Request $request)
     {
-        $validated = $request->validate([
-            'quota_warning'   => ['boolean'],
-            'quota_exceeded'  => ['boolean'],
-            'payment_confirm' => ['boolean'],
-            'team_invitation' => ['boolean'],
+        $request->validate([
+            'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'hero_title'    => ['required', 'string', 'max:100'],
+            'hero_subtitle' => ['required', 'string', 'max:300'],
+            'hero_cta'      => ['required', 'string', 'max:50'],
+            'announcement'  => ['nullable', 'string', 'max:200'],
+            'show_pricing'  => ['boolean'],
+            'show_contact'  => ['boolean'],
+            'contact_email' => ['required', 'email'],
+            'footer_text'   => ['required', 'string', 'max:100'],
+            'features'      => ['nullable', 'array'],
+            'faq'           => ['nullable', 'array'],
         ]);
 
-        auth()->user()->update(['notification_preferences' => $validated]);
+        $keys = ['primary_color','hero_title','hero_subtitle','hero_cta','announcement','contact_email','footer_text'];
+        foreach ($keys as $k) \App\Models\Setting::set('landing_'.$k, $request->$k);
+        \App\Models\Setting::set('landing_show_pricing', $request->show_pricing ? '1' : '0');
+        \App\Models\Setting::set('landing_show_contact', $request->show_contact ? '1' : '0');
+        \App\Models\Setting::set('landing_features', json_encode($request->features ?? []));
+        \App\Models\Setting::set('landing_faq',      json_encode($request->faq ?? []));
 
-        return back()->with('success', 'Notification preferences saved.');
+        return back()->with('success', 'Landing page saved.');
     }
 }

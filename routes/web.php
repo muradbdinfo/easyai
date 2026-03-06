@@ -27,6 +27,7 @@ use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\InvitationController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\LandingController;
 use Inertia\Inertia;
 
 /*
@@ -36,10 +37,10 @@ use Inertia\Inertia;
 */
 Route::domain(config('domains.app'))->group(function () {
 
-Route::get('/', [\App\Http\Controllers\MarketingController::class, 'home'])->name('home');
-Route::get('/pricing', [\App\Http\Controllers\MarketingController::class, 'pricing'])->name('marketing.pricing');
-Route::get('/contact', [\App\Http\Controllers\MarketingController::class, 'contact'])->name('marketing.contact');
-
+Route::get('/',         [LandingController::class, 'home'])->name('landing.home');
+Route::get('/pricing',  [LandingController::class, 'pricing'])->name('landing.pricing');
+Route::get('/contact',  [LandingController::class, 'contact'])->name('landing.contact');
+Route::post('/contact', [LandingController::class, 'send'])->name('landing.contact.send');
     // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
         Route::get('/login',     [AuthController::class, 'showLogin'])->name('login');
@@ -322,7 +323,8 @@ Route::domain(config('domains.admin'))->group(function () {
         Route::post('/settings/ollama/test', [AdminSettingsController::class, 'testOllama'])->name('admin.settings.ollama.test');
         Route::put('/settings/mail',         [AdminSettingsController::class, 'updateMail'])->name('admin.settings.mail');
         Route::post('/settings/mail/test',   [AdminSettingsController::class, 'testMail'])->name('admin.settings.mail.test');
-
+        Route::put('/settings/landing', [AdminSettingsController::class, 'updateLanding'])->name('admin.settings.landing');
+        
     }); // end superadmin middleware
 
 }); // end admin.easyai.local domain

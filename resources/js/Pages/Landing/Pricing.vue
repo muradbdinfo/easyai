@@ -1,0 +1,97 @@
+<script setup>
+// FILE: resources/js/Pages/Landing/Pricing.vue
+import LandingLayout from '@/Layouts/LandingLayout.vue'
+import { Link } from '@inertiajs/vue3'
+
+defineProps({ settings: Object, plans: Array })
+</script>
+
+<template>
+    <LandingLayout :settings="settings">
+
+        <!-- Hero -->
+        <section class="pt-24 pb-14 px-5 text-center">
+            <div class="max-w-2xl mx-auto">
+                <h1 class="text-4xl md:text-5xl font-extrabold text-white mb-4">
+                    Simple Pricing
+                </h1>
+                <p class="text-slate-400 text-lg">
+                    No hidden fees. Pay with bKash, Nagad, Stripe, or Cash on Delivery.
+                </p>
+            </div>
+        </section>
+
+        <!-- Plans -->
+        <section class="pb-20 px-5">
+            <div class="max-w-5xl mx-auto">
+
+                <!-- Cards -->
+                <div class="grid md:grid-cols-3 gap-6 mb-14">
+                    <div v-for="(plan, i) in plans" :key="plan.id"
+                         class="relative bg-slate-900 border rounded-2xl p-7"
+                         :style="i === 1 ? 'border-color: var(--brand)' : 'border-color: rgb(30 41 59)'">
+                        <div v-if="i === 1" class="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                            <span class="text-white text-xs font-bold px-4 py-1 rounded-full"
+                                  style="background: var(--brand)">⭐ Most Popular</span>
+                        </div>
+                        <h3 class="text-white font-bold text-xl mb-2">{{ plan.name }}</h3>
+                        <div class="flex items-end gap-1 mb-1">
+                            <span class="text-5xl font-extrabold text-white">${{ plan.price }}</span>
+                            <span class="text-slate-400 text-sm pb-2">/month</span>
+                        </div>
+                        <p class="text-sm font-medium mb-6" style="color: var(--brand)">
+                            {{ Math.round(plan.monthly_token_limit / 1000) }}K tokens / month
+                        </p>
+                        <ul v-if="plan.features" class="space-y-3 mb-8">
+                            <li v-for="f in plan.features" :key="f"
+                                class="flex items-start gap-2 text-sm text-slate-300">
+                                <svg class="w-4 h-4 shrink-0 mt-0.5" :style="{color: settings.primary_color}"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                {{ f }}
+                            </li>
+                        </ul>
+                        <Link :href="route('register')"
+                              class="block text-center py-3 rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
+                              :style="i === 1 ? 'background: var(--brand); color:#fff' : 'background: rgb(30 41 59); color: rgb(203 213 225)'">
+                            Start Free Trial
+                        </Link>
+                    </div>
+                </div>
+
+                <!-- Payment methods -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 mb-12">
+                    <h2 class="text-white font-bold text-xl text-center mb-8">Accepted Payment Methods</h2>
+                    <div class="grid sm:grid-cols-3 gap-6">
+                        <div v-for="[icon, title, desc] in [
+                            ['💵','Cash on Delivery','Pay manually after admin approval.'],
+                            ['📱','bKash / Nagad / Cards','Instant via SSLCommerz gateway.'],
+                            ['💳','International Cards','Visa, Mastercard, Amex via Stripe.'],
+                        ]" :key="title" class="text-center">
+                            <div class="text-4xl mb-3">{{ icon }}</div>
+                            <h3 class="text-white font-semibold mb-1">{{ title }}</h3>
+                            <p class="text-slate-400 text-sm">{{ desc }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Self-hosted CTA -->
+                <div class="border rounded-2xl p-8 text-center"
+                     style="background: color-mix(in srgb, var(--brand) 8%, transparent); border-color: color-mix(in srgb, var(--brand) 30%, transparent)">
+                    <div class="text-3xl mb-3">🖥️</div>
+                    <h3 class="text-white font-bold text-xl mb-2">Need a Self-Hosted License?</h3>
+                    <p class="text-slate-400 mb-6 max-w-lg mx-auto text-sm leading-relaxed">
+                        Buy the source code once and deploy on your own infrastructure forever. One-time payment.
+                    </p>
+                    <Link v-if="settings.show_contact" :href="route('landing.contact')"
+                          class="inline-flex items-center gap-2 px-6 py-3 text-white font-semibold rounded-xl transition-opacity hover:opacity-90 text-sm"
+                          style="background: var(--brand)">
+                        Contact for License →
+                    </Link>
+                </div>
+            </div>
+        </section>
+
+    </LandingLayout>
+</template>
