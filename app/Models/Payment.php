@@ -10,7 +10,7 @@ class Payment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'tenant_id', 'user_id', 'plan_id', 'method',
+        'tenant_id', 'user_id', 'plan_id', 'addon_id','method',
         'amount', 'currency', 'status', 'transaction_id',
         'gateway_response', 'invoice_number', 'invoice_path',
         'approved_by', 'approved_at',
@@ -37,7 +37,10 @@ class Payment extends Model
     {
         return $this->belongsTo(Plan::class);
     }
-
+public function addon()
+{
+    return $this->belongsTo(Addon::class);
+}
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
