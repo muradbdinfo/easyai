@@ -3,7 +3,11 @@
 import LandingLayout from '@/Layouts/LandingLayout.vue'
 import { Link } from '@inertiajs/vue3'
 
-defineProps({ settings: Object, plans: Array })
+defineProps({
+    settings: Object,
+    plans:    Array,
+    addons:   { type: Array, default: () => [] },
+})
 </script>
 
 <template>
@@ -21,11 +25,10 @@ defineProps({ settings: Object, plans: Array })
             </div>
         </section>
 
-        <!-- Plans -->
         <section class="pb-20 px-5">
             <div class="max-w-5xl mx-auto">
 
-                <!-- Cards -->
+                <!-- Plan cards -->
                 <div class="grid md:grid-cols-3 gap-6 mb-14">
                     <div v-for="(plan, i) in plans" :key="plan.id"
                          class="relative bg-slate-900 border rounded-2xl p-7"
@@ -54,9 +57,76 @@ defineProps({ settings: Object, plans: Array })
                         </ul>
                         <Link :href="route('register')"
                               class="block text-center py-3 rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
-                              :style="i === 1 ? 'background: var(--brand); color:#fff' : 'background: rgb(30 41 59); color: rgb(203 213 225)'">
+                              :style="i === 1
+                                  ? 'background: var(--brand); color:#fff'
+                                  : 'background: rgb(30 41 59); color: rgb(203 213 225)'">
                             Start Free Trial
                         </Link>
+                    </div>
+                </div>
+
+                <!-- ── Add-ons section ──────────────────────────────────── -->
+                <div v-if="addons.length" class="mb-14">
+
+                    <div class="text-center mb-10">
+                        <p class="text-xs font-bold uppercase tracking-widest mb-2"
+                           style="color: var(--brand)">Power-Ups</p>
+                        <h2 class="text-2xl md:text-3xl font-bold text-white mb-3">
+                            Add-on Modules
+                        </h2>
+                        <p class="text-slate-400 text-sm max-w-xl mx-auto">
+                            Extend any plan with optional add-ons.
+                            Purchase separately, activate instantly, cancel anytime.
+                        </p>
+                    </div>
+
+                    <div class="grid sm:grid-cols-2 gap-6">
+                        <div v-for="addon in addons" :key="addon.id"
+                             class="bg-slate-900 border border-slate-700 rounded-2xl p-6 flex flex-col gap-4
+                                    hover:border-slate-500 transition-colors">
+
+                            <!-- Name + price -->
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-lg">⚡</span>
+                                        <h3 class="text-white font-bold text-lg">{{ addon.name }}</h3>
+                                    </div>
+                                    <p class="text-slate-400 text-sm leading-relaxed">
+                                        {{ addon.description }}
+                                    </p>
+                                </div>
+                                <div class="text-right flex-shrink-0">
+                                    <p class="text-2xl font-extrabold text-white">
+                                        +{{ addon.currency }}&nbsp;{{ addon.price }}
+                                    </p>
+                                    <p class="text-slate-500 text-xs">/{{ addon.billing_cycle }}</p>
+                                </div>
+                            </div>
+
+                            <!-- Features -->
+                            <ul v-if="addon.features?.length" class="space-y-1.5">
+                                <li v-for="f in addon.features" :key="f"
+                                    class="flex items-center gap-2 text-sm text-slate-300">
+                                    <svg class="w-3.5 h-3.5 shrink-0" :style="{color: settings.primary_color}"
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    {{ f }}
+                                </li>
+                            </ul>
+
+                            <!-- CTA -->
+                            <Link :href="route('register')"
+                                  class="mt-auto block text-center py-2.5 rounded-xl text-sm font-semibold
+                                         border transition-all hover:text-white"
+                                  :style="`border-color: var(--brand); color: var(--brand);`"
+                                  @mouseover="$event.target.style.background='var(--brand)';$event.target.style.color='#fff'"
+                                  @mouseout="$event.target.style.background='transparent';$event.target.style.color='var(--brand)'">
+                                Get Started →
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
@@ -78,18 +148,21 @@ defineProps({ settings: Object, plans: Array })
 
                 <!-- Self-hosted CTA -->
                 <div class="border rounded-2xl p-8 text-center"
-                     style="background: color-mix(in srgb, var(--brand) 8%, transparent); border-color: color-mix(in srgb, var(--brand) 30%, transparent)">
+                     style="background: color-mix(in srgb, var(--brand) 8%, transparent);
+                            border-color: color-mix(in srgb, var(--brand) 30%, transparent)">
                     <div class="text-3xl mb-3">🖥️</div>
                     <h3 class="text-white font-bold text-xl mb-2">Need a Self-Hosted License?</h3>
                     <p class="text-slate-400 mb-6 max-w-lg mx-auto text-sm leading-relaxed">
                         Buy the source code once and deploy on your own infrastructure forever. One-time payment.
                     </p>
                     <Link v-if="settings.show_contact" :href="route('landing.contact')"
-                          class="inline-flex items-center gap-2 px-6 py-3 text-white font-semibold rounded-xl transition-opacity hover:opacity-90 text-sm"
+                          class="inline-flex items-center gap-2 px-6 py-3 text-white font-semibold
+                                 rounded-xl transition-opacity hover:opacity-90 text-sm"
                           style="background: var(--brand)">
                         Contact for License →
                     </Link>
                 </div>
+
             </div>
         </section>
 

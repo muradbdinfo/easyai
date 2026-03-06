@@ -4,6 +4,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Addon;
 use App\Models\Plan;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -33,19 +34,25 @@ class LandingController extends Controller
 
     public function home()
     {
-        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+        $plans  = Plan::where('is_active', true)->orderBy('price')->get();
+        $addons = Addon::where('is_active', true)->orderBy('sort_order')->get();
+
         return Inertia::render('Landing/Home', [
             'settings' => $this->settings(),
             'plans'    => $plans,
+            'addons'   => $addons,
         ]);
     }
 
     public function pricing()
     {
-        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+        $plans  = Plan::where('is_active', true)->orderBy('price')->get();
+        $addons = Addon::where('is_active', true)->orderBy('sort_order')->get();
+
         return Inertia::render('Landing/Pricing', [
             'settings' => $this->settings(),
             'plans'    => $plans,
+            'addons'   => $addons,
         ]);
     }
 
@@ -96,10 +103,10 @@ class LandingController extends Controller
     private function defaultFaq(): array
     {
         return [
-            ['q' => 'Is my data private?',                    'a' => 'Yes. EasyAI is fully self-hosted. All AI processing happens via your own Ollama instance.'],
-            ['q' => 'Which AI models are supported?',         'a' => 'Any model supported by Ollama — llama3, mistral, codellama, gemma, and more.'],
-            ['q' => 'Can I use it for my whole team?',        'a' => 'Yes. Invite team members, assign roles, and restrict projects per member.'],
-            ['q' => 'What payment methods are accepted?',     'a' => 'Cash on Delivery, bKash/Nagad via SSLCommerz, and international cards via Stripe.'],
+            ['q' => 'Is my data private?',                      'a' => 'Yes. EasyAI is fully self-hosted. All AI processing happens via your own Ollama instance.'],
+            ['q' => 'Which AI models are supported?',           'a' => 'Any model supported by Ollama — llama3, mistral, codellama, gemma, and more.'],
+            ['q' => 'Can I use it for my whole team?',          'a' => 'Yes. Invite team members, assign roles, and restrict projects per member.'],
+            ['q' => 'What payment methods are accepted?',       'a' => 'Cash on Delivery, bKash/Nagad via SSLCommerz, and international cards via Stripe.'],
             ['q' => 'Do I need technical knowledge to deploy?', 'a' => 'Basic server knowledge is enough. Works on cPanel and VPS (Ubuntu 22).'],
         ];
     }
