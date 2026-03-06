@@ -324,7 +324,8 @@ Route::domain(config('domains.admin'))->group(function () {
         Route::put('/settings/mail',         [AdminSettingsController::class, 'updateMail'])->name('admin.settings.mail');
         Route::post('/settings/mail/test',   [AdminSettingsController::class, 'testMail'])->name('admin.settings.mail.test');
         Route::put('/settings/landing', [AdminSettingsController::class, 'updateLanding'])->name('admin.settings.landing');
-        
+        Route::put('/settings/theme', [AdminSettingsController::class, 'updateTheme'])->name('admin.settings.theme');
+
     }); // end superadmin middleware
 
 }); // end admin.easyai.local domain

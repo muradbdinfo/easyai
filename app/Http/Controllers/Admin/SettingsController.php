@@ -1,7 +1,5 @@
 <?php
-
 // FILE: app/Http/Controllers/Admin/SettingsController.php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -22,7 +20,7 @@ class SettingsController extends Controller
                 'logo_url'      => \App\Models\Setting::get('logo_url'),
             ],
             'ollama' => [
-                'url'   => \App\Models\Setting::get('ollama_url', config('ollama.url')),
+                'url'   => \App\Models\Setting::get('ollama_url',   config('ollama.url')),
                 'model' => \App\Models\Setting::get('ollama_model', config('ollama.model')),
             ],
             'mail' => [
@@ -32,22 +30,29 @@ class SettingsController extends Controller
                 'from_name'  => env('MAIL_FROM_NAME', ''),
                 'from_email' => env('MAIL_FROM_ADDRESS', ''),
             ],
+            // ── Theme ──────────────────────────────────────────────
+            'theme' => [
+                'brand'        => \App\Models\Setting::get('theme_brand',        '#6366f1'),
+                'tenant_mode'  => \App\Models\Setting::get('theme_tenant_mode',  'dark'),
+                'landing_mode' => \App\Models\Setting::get('theme_landing_mode', 'dark'),
+            ],
+            // ── Landing ────────────────────────────────────────────
             'landing' => [
-                'primary_color' => \App\Models\Setting::get('landing_primary_color', '#6366f1'),
-                'hero_title'    => \App\Models\Setting::get('landing_hero_title', 'Your Private AI Workspace'),
+                'hero_title'    => \App\Models\Setting::get('landing_hero_title',    'Your Private AI Workspace'),
                 'hero_subtitle' => \App\Models\Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace for your team.'),
-                'hero_cta'      => \App\Models\Setting::get('landing_hero_cta', 'Start Free Trial'),
-                'announcement'  => \App\Models\Setting::get('landing_announcement', ''),
+                'hero_cta'      => \App\Models\Setting::get('landing_hero_cta',      'Start Free Trial'),
+                'announcement'  => \App\Models\Setting::get('landing_announcement',  ''),
                 'show_pricing'  => \App\Models\Setting::get('landing_show_pricing', '1') === '1',
                 'show_contact'  => \App\Models\Setting::get('landing_show_contact', '1') === '1',
                 'contact_email' => \App\Models\Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', '')),
-                'footer_text'   => \App\Models\Setting::get('landing_footer_text', 'EasyAI — Self-Hosted AI Workspace'),
+                'footer_text'   => \App\Models\Setting::get('landing_footer_text',  'EasyAI — Self-Hosted AI Workspace'),
                 'features'      => json_decode(\App\Models\Setting::get('landing_features', '[]'), true) ?: [],
-                'faq'           => json_decode(\App\Models\Setting::get('landing_faq', '[]'), true) ?: [],
+                'faq'           => json_decode(\App\Models\Setting::get('landing_faq',      '[]'), true) ?: [],
             ],
         ]);
     }
 
+    // ── Platform ───────────────────────────────────────────────────
     public function updatePlatform(Request $request)
     {
         $request->validate(['app_name' => ['required','string','max:100'], 'support_email' => ['required','email']]);
@@ -63,7 +68,7 @@ class SettingsController extends Controller
         if ($old) Storage::disk('public')->delete($old);
         $path = $request->file('logo')->store('logos', 'public');
         \App\Models\Setting::set('logo_path', $path);
-        \App\Models\Setting::set('logo_url', asset('storage/' . $path));
+        \App\Models\Setting::set('logo_url',  asset('storage/'.$path));
         return back()->with('success', 'Logo updated.');
     }
 
@@ -72,14 +77,15 @@ class SettingsController extends Controller
         $path = \App\Models\Setting::get('logo_path');
         if ($path) Storage::disk('public')->delete($path);
         \App\Models\Setting::set('logo_path', null);
-        \App\Models\Setting::set('logo_url', null);
+        \App\Models\Setting::set('logo_url',  null);
         return back()->with('success', 'Logo removed.');
     }
 
+    // ── Ollama ─────────────────────────────────────────────────────
     public function updateOllama(Request $request)
     {
         $request->validate(['url' => ['required','url'], 'model' => ['required','string']]);
-        \App\Models\Setting::set('ollama_url', $request->url);
+        \App\Models\Setting::set('ollama_url',   $request->url);
         \App\Models\Setting::set('ollama_model', $request->model);
         return back()->with('success', 'Ollama settings saved.');
     }
@@ -88,13 +94,14 @@ class SettingsController extends Controller
     {
         try {
             $url  = \App\Models\Setting::get('ollama_url') ?? config('ollama.url');
-            $resp = Http::timeout(5)->get($url . '/api/tags');
+            $resp = Http::timeout(5)->get($url.'/api/tags');
             return response()->json(['success' => $resp->ok(), 'message' => $resp->ok() ? 'Connected.' : 'Failed.']);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
+    // ── Mail ───────────────────────────────────────────────────────
     public function updateMail(Request $request)
     {
         $request->validate([
@@ -113,36 +120,49 @@ class SettingsController extends Controller
     {
         $request->validate(['email' => ['required','email']]);
         try {
-            Mail::raw('EasyAI mail test.', fn ($m) => $m->to($request->email)->subject('EasyAI Mail Test'));
-            return back()->with('success', 'Test email sent to ' . $request->email);
+            Mail::raw('EasyAI mail test.', fn($m) => $m->to($request->email)->subject('EasyAI Mail Test'));
+            return back()->with('success', 'Test email sent to '.$request->email);
         } catch (\Throwable $e) {
-            return back()->withErrors(['email' => 'Mail failed: ' . $e->getMessage()]);
+            return back()->withErrors(['email' => 'Mail failed: '.$e->getMessage()]);
         }
     }
 
+    // ── Theme ──────────────────────────────────────────────────────
+    public function updateTheme(Request $request)
+    {
+        $request->validate([
+            'brand'        => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'tenant_mode'  => ['required', 'in:dark,light'],
+            'landing_mode' => ['required', 'in:dark,light'],
+        ]);
+        \App\Models\Setting::set('theme_brand',        $request->brand);
+        \App\Models\Setting::set('theme_tenant_mode',  $request->tenant_mode);
+        \App\Models\Setting::set('theme_landing_mode', $request->landing_mode);
+        return back()->with('success', 'Theme saved.');
+    }
+
+    // ── Landing ────────────────────────────────────────────────────
     public function updateLanding(Request $request)
     {
         $request->validate([
-            'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'hero_title'    => ['required', 'string', 'max:100'],
-            'hero_subtitle' => ['required', 'string', 'max:300'],
-            'hero_cta'      => ['required', 'string', 'max:50'],
-            'announcement'  => ['nullable', 'string', 'max:200'],
+            'hero_title'    => ['required','string','max:100'],
+            'hero_subtitle' => ['required','string','max:300'],
+            'hero_cta'      => ['required','string','max:50'],
+            'announcement'  => ['nullable','string','max:200'],
             'show_pricing'  => ['boolean'],
             'show_contact'  => ['boolean'],
-            'contact_email' => ['required', 'email'],
-            'footer_text'   => ['required', 'string', 'max:100'],
-            'features'      => ['nullable', 'array'],
-            'faq'           => ['nullable', 'array'],
+            'contact_email' => ['required','email'],
+            'footer_text'   => ['required','string','max:100'],
+            'features'      => ['nullable','array'],
+            'faq'           => ['nullable','array'],
         ]);
-
-        $keys = ['primary_color','hero_title','hero_subtitle','hero_cta','announcement','contact_email','footer_text'];
-        foreach ($keys as $k) \App\Models\Setting::set('landing_'.$k, $request->$k);
+        foreach (['hero_title','hero_subtitle','hero_cta','announcement','contact_email','footer_text'] as $k) {
+            \App\Models\Setting::set('landing_'.$k, $request->$k);
+        }
         \App\Models\Setting::set('landing_show_pricing', $request->show_pricing ? '1' : '0');
         \App\Models\Setting::set('landing_show_contact', $request->show_contact ? '1' : '0');
-        \App\Models\Setting::set('landing_features', json_encode($request->features ?? []));
-        \App\Models\Setting::set('landing_faq',      json_encode($request->faq ?? []));
-
+        \App\Models\Setting::set('landing_features',     json_encode($request->features ?? []));
+        \App\Models\Setting::set('landing_faq',          json_encode($request->faq ?? []));
         return back()->with('success', 'Landing page saved.');
     }
 }

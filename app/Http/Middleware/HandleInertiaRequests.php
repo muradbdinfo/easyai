@@ -91,10 +91,13 @@ class HandleInertiaRequests extends Middleware
             'sidebar_projects' => $sidebarProjects,
             'templates'        => $templates,
             'ollama_models'    => array_values($ollamaModels),
+            'theme' => \App\Services\ThemeService::get(),
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),
             ],
         ]);
+
+        
     }
 }
