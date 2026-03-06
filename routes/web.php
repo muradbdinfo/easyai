@@ -36,7 +36,9 @@ use Inertia\Inertia;
 */
 Route::domain(config('domains.app'))->group(function () {
 
-    Route::get('/', fn () => redirect()->route('login'));
+Route::get('/', [\App\Http\Controllers\MarketingController::class, 'home'])->name('home');
+Route::get('/pricing', [\App\Http\Controllers\MarketingController::class, 'pricing'])->name('marketing.pricing');
+Route::get('/contact', [\App\Http\Controllers\MarketingController::class, 'contact'])->name('marketing.contact');
 
     // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
