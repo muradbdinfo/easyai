@@ -22,11 +22,12 @@ function isActive(path) {
 }
 
 const navItems = [
-    { label: 'Dashboard', icon: LayoutDashboard, href: '/',         name: 'admin.dashboard'     },
-    { label: 'Tenants',   icon: Users,            href: '/tenants',  name: 'admin.tenants.index' },
-    { label: 'Plans',     icon: Package,          href: '/plans',    name: 'admin.plans.index'   },
-    { label: 'Payments',  icon: CreditCard,       href: '/payments', name: 'admin.payments.index'},
-    { label: 'Usage',     icon: BarChart2,        href: '/usage',    name: 'admin.usage.index'   },
+    { label: 'Dashboard', icon: LayoutDashboard, href: '/',          name: 'admin.dashboard'      },
+    { label: 'Tenants',   icon: Users,            href: '/tenants',   name: 'admin.tenants.index'  },
+    { label: 'Plans',     icon: Package,          href: '/plans',     name: 'admin.plans.index'    },
+    { label: 'Payments',  icon: CreditCard,       href: '/payments',  name: 'admin.payments.index' },
+    { label: 'Usage',     icon: BarChart2,        href: '/usage',     name: 'admin.usage.index'    },
+    { label: 'Settings',  icon: Settings,         href: '/settings',  name: 'admin.settings.index' }, // ADDED
 ]
 </script>
 

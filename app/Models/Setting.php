@@ -1,23 +1,29 @@
 <?php
-// FILE: database/migrations/xxxx_create_settings_table.php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+// FILE: app/Models/Setting.php
 
-return new class extends Migration
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Setting extends Model
 {
-    public function up(): void
+    protected $primaryKey = 'key';
+    protected $keyType    = 'string';
+    public    $incrementing = false;
+
+    protected $fillable = ['key', 'value'];
+
+    /** Get a setting value */
+    public static function get(string $key, mixed $default = null): mixed
     {
-        Schema::create('settings', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->text('value')->nullable();
-            $table->timestamps();
-        });
+        $row = static::find($key);
+        return $row ? $row->value : $default;
     }
 
-    public function down(): void
+    /** Set a setting value */
+    public static function set(string $key, mixed $value): void
     {
-        Schema::dropIfExists('settings');
+        static::updateOrCreate(['key' => $key], ['value' => $value]);
     }
-};
+}
