@@ -14,7 +14,10 @@ return [
     | and production domains which access your API via a frontend SPA.
     |
     */
-'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'easyai.local,admin.easyai.local')),
+// 'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'easyai.local,admin.easyai.local')),
+  'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS',
+        env('APP_DOMAIN', 'easyai.local') . ',' . env('ADMIN_DOMAIN', 'admin.easyai.local')
+    )),
 
     /*
     |--------------------------------------------------------------------------

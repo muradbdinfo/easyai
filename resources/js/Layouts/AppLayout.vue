@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     LayoutDashboard, FolderOpen, CreditCard, BarChart2,
-    LogOut, Menu, X, User, Bot, FileText, Users
+    LogOut, Menu, X, User, Bot, FileText, Users,Settings
 } from 'lucide-vue-next'
 import TokenBar from '@/Components/TokenBar.vue'
 import UpgradeModal from '@/Components/UpgradeModal.vue'
@@ -105,6 +105,15 @@ function isActive(path) {
                     <Users class="w-4 h-4 shrink-0" />
                     Team
                 </Link>
+
+                <Link :href="route('settings.index')"
+    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+    :class="isActive('/settings') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+    @click="sidebarOpen = false">
+    <Settings class="w-4 h-4 shrink-0" />
+    Settings
+</Link>
+
             </nav>
 
             <!-- Projects + Chats sidebar tree -->

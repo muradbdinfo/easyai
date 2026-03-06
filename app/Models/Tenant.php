@@ -17,6 +17,8 @@ class Tenant extends Model
         'tokens_used',
         'status',
         'trial_ends_at',
+        'logo_path',      // ADDED
+        'default_model',  // ADDED
     ];
 
     protected $casts = [
@@ -26,6 +28,7 @@ class Tenant extends Model
     ];
 
     // ─── Relationships ────────────────────────────────────────────
+
     public function plan()
     {
         return $this->belongsTo(Plan::class);
@@ -41,7 +44,13 @@ class Tenant extends Model
         return $this->hasMany(Project::class);
     }
 
+    public function teamInvitations()
+    {
+        return $this->hasMany(\App\Models\TeamInvitation::class);
+    }
+
     // ─── Status Helpers ───────────────────────────────────────────
+
     public function isActive(): bool
     {
         return $this->status === 'active';
@@ -58,6 +67,7 @@ class Tenant extends Model
     }
 
     // ─── Token Helpers ────────────────────────────────────────────
+
     public function tokensRemaining(): int
     {
         return max(0, $this->token_quota - $this->tokens_used);
@@ -69,9 +79,12 @@ class Tenant extends Model
         return round(($this->tokens_used / $this->token_quota) * 100, 2);
     }
 
-    public function teamInvitations()
-{
-    return $this->hasMany(\App\Models\TeamInvitation::class);
-}
+    // ─── Logo Helper ──────────────────────────────────────────────  ADDED
 
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path
+            ? asset('storage/' . $this->logo_path)
+            : null;
+    }
 }

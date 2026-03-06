@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Admin\TenantController as AdminTenantController;
 use App\Http\Controllers\Admin\UsageController as AdminUsageController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ChatController;
@@ -32,7 +34,7 @@ use Inertia\Inertia;
 | easyai.local — Tenant App
 |--------------------------------------------------------------------------
 */
-Route::domain('easyai.local')->group(function () {
+Route::domain(config('domains.app'))->group(function () {
 
     Route::get('/', fn () => redirect()->route('login'));
 
@@ -62,8 +64,8 @@ Route::domain('easyai.local')->group(function () {
         // ── Auth + Tenant ──────────────────────────────────────────────────
         Route::middleware('tenant')->group(function () {
 
-        // Standalone new chat (uses General project)
-Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
+            // Standalone new chat (uses General project)
+            Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
 
             // Dashboard
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -73,22 +75,20 @@ Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new'
             Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
             Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
 
+            // Project-level Knowledge Base
+            Route::prefix('projects/{project}/knowledge')->group(function () {
+                Route::get('/',                        [KnowledgeBaseController::class, 'index'])->name('kb.index');
+                Route::post('/',                       [KnowledgeBaseController::class, 'store'])->name('kb.store');
+                Route::post('/documents',              [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.upload');
+                Route::delete('/documents/{document}', [KnowledgeBaseController::class, 'destroyDocument'])->name('kb.document.destroy');
+            });
 
-// Project-level Knowledge Base
-Route::prefix('projects/{project}/knowledge')->group(function () {
-    Route::get('/',                   [KnowledgeBaseController::class, 'index'])->name('kb.index');
-    Route::post('/',                  [KnowledgeBaseController::class, 'store'])->name('kb.store');
-    Route::post('/documents',         [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.upload');
-    Route::delete('/documents/{document}', [KnowledgeBaseController::class, 'destroyDocument'])->name('kb.document.destroy');
-});
-
-// Chat-level Knowledge Base
-Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
-    Route::get('/',           [KnowledgeBaseController::class, 'chatIndex'])->name('kb.chat.index');
-    Route::post('/',          [KnowledgeBaseController::class, 'chatStore'])->name('kb.chat.store');
-    Route::post('/documents', [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.chat.upload');
-});
-
+            // Chat-level Knowledge Base
+            Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
+                Route::get('/',           [KnowledgeBaseController::class, 'chatIndex'])->name('kb.chat.index');
+                Route::post('/',          [KnowledgeBaseController::class, 'chatStore'])->name('kb.chat.store');
+                Route::post('/documents', [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.chat.upload');
+            });
 
             // ── Projects ───────────────────────────────────────────────────
             Route::resource('projects', ProjectController::class);
@@ -114,7 +114,7 @@ Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
                     Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                 });
 
-                // ── SSE Streaming (M19) ────────────────────────────────────
+                // SSE Streaming
                 Route::get('/{chat}/stream', [StreamController::class, 'stream'])
                     ->name('projects.chats.stream');
 
@@ -201,21 +201,32 @@ Route::prefix('projects/{project}/chats/{chat}/knowledge')->group(function () {
             Route::get('/usage',        [\App\Http\Controllers\UsageController::class, 'index'])->name('usage.index');
             Route::get('/usage/export', [\App\Http\Controllers\UsageController::class, 'exportCsv'])->name('usage.export.csv');
 
-            // ── Team Management ───────────────────────────────────────────────────
+            // ── Team Management ────────────────────────────────────────────
             Route::get('/team',                                  [TeamController::class, 'index'])->name('team.index');
             Route::post('/team/invite',                          [TeamController::class, 'invite'])->name('team.invite');
             Route::post('/team/invitations/{invitation}/resend', [TeamController::class, 'resendInvite'])->name('team.invitation.resend');
             Route::delete('/team/invitations/{invitation}',      [TeamController::class, 'cancelInvite'])->name('team.invitation.cancel');
-Route::put('/team/members/{member}/role',              [TeamController::class, 'updateRole'])->name('team.member.role');
-Route::put('/team/members/{member}/status',            [TeamController::class, 'toggleStatus'])->name('team.member.status');
-Route::delete('/team/members/{member}',                [TeamController::class, 'removeMember'])->name('team.member.remove');
+            Route::put('/team/members/{member}/role',            [TeamController::class, 'updateRole'])->name('team.member.role');
+            Route::put('/team/members/{member}/status',          [TeamController::class, 'toggleStatus'])->name('team.member.status');
+            Route::delete('/team/members/{member}',              [TeamController::class, 'removeMember'])->name('team.member.remove');
 
-            // ── Project Members ───────────────────────────────────────────────────
+            // ── Project Members ────────────────────────────────────────────
             Route::get('/projects/{project}/members',             [ProjectMemberController::class, 'index'])->name('project.members.index');
             Route::post('/projects/{project}/members',            [ProjectMemberController::class, 'add'])->name('project.members.add');
             Route::put('/projects/{project}/members/{member}',    [ProjectMemberController::class, 'updateRole'])->name('project.members.role');
             Route::delete('/projects/{project}/members/{member}', [ProjectMemberController::class, 'remove'])->name('project.members.remove');
             Route::put('/projects/{project}/restricted',          [ProjectMemberController::class, 'toggleRestricted'])->name('project.restricted.toggle');
+
+            // ── Tenant Settings ────────────────────────────────────────────
+            Route::get('/settings',                  [SettingsController::class, 'index'])->name('settings.index');
+            Route::put('/settings/profile',          [SettingsController::class, 'updateProfile'])->name('settings.profile');
+            Route::put('/settings/password',         [SettingsController::class, 'updatePassword'])->name('settings.password');
+            Route::put('/settings/workspace',        [SettingsController::class, 'updateWorkspace'])->name('settings.workspace');
+            Route::post('/settings/logo',            [SettingsController::class, 'uploadLogo'])->name('settings.logo');
+            Route::delete('/settings/logo',          [SettingsController::class, 'deleteLogo'])->name('settings.logo.delete');
+            Route::post('/settings/api-keys',        [SettingsController::class, 'createApiKey'])->name('settings.apikey.create');
+            Route::delete('/settings/api-keys/{id}', [SettingsController::class, 'deleteApiKey'])->name('settings.apikey.delete');
+            Route::put('/settings/notifications',    [SettingsController::class, 'updateNotifications'])->name('settings.notifications');
 
         }); // end tenant middleware
     }); // end auth middleware
@@ -223,7 +234,7 @@ Route::delete('/team/members/{member}',                [TeamController::class, '
 }); // end easyai.local domain
 
 // ── Stripe webhook (no auth, no CSRF) ─────────────────────────────────────────
-Route::domain('easyai.local')
+Route::domain(config('domains.app'))
     ->post('/stripe/webhook', [BillingController::class, 'stripeWebhook'])
     ->name('stripe.webhook');
 
@@ -232,7 +243,7 @@ Route::domain('easyai.local')
 | admin.easyai.local — Admin Panel
 |--------------------------------------------------------------------------
 */
-Route::domain('admin.easyai.local')->group(function () {
+Route::domain(config('domains.admin'))->group(function () {
 
     // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
@@ -243,9 +254,7 @@ Route::domain('admin.easyai.local')->group(function () {
     // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
 
-     // ── ADD THIS LINE ──────────────────────────────────────────────────
         Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
-
 
         Route::get('/', [AdminDashboardController::class, 'index'])
             ->name('admin.dashboard');
@@ -297,7 +306,20 @@ Route::domain('admin.easyai.local')->group(function () {
         Route::get('/usage',
             [AdminUsageController::class, 'index'])
             ->name('admin.usage.index');
-        Route::get('/usage/export', [AdminUsageController::class, 'exportCsv'])->name('admin.usage.export');
+
+        Route::get('/usage/export',
+            [AdminUsageController::class, 'exportCsv'])
+            ->name('admin.usage.export');
+
+        // ── Admin Settings ─────────────────────────────────────────
+        Route::get('/settings',              [AdminSettingsController::class, 'index'])->name('admin.settings.index');
+        Route::put('/settings/platform',     [AdminSettingsController::class, 'updatePlatform'])->name('admin.settings.platform');
+        Route::post('/settings/logo',        [AdminSettingsController::class, 'uploadLogo'])->name('admin.settings.logo');
+        Route::delete('/settings/logo',      [AdminSettingsController::class, 'deleteLogo'])->name('admin.settings.logo.delete');
+        Route::put('/settings/ollama',       [AdminSettingsController::class, 'updateOllama'])->name('admin.settings.ollama');
+        Route::post('/settings/ollama/test', [AdminSettingsController::class, 'testOllama'])->name('admin.settings.ollama.test');
+        Route::put('/settings/mail',         [AdminSettingsController::class, 'updateMail'])->name('admin.settings.mail');
+        Route::post('/settings/mail/test',   [AdminSettingsController::class, 'testMail'])->name('admin.settings.mail.test');
 
     }); // end superadmin middleware
 

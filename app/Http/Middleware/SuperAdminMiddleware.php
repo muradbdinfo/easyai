@@ -10,14 +10,12 @@ class SuperAdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Must be authenticated + superadmin role
         if (!$request->user() || !$request->user()->isSuperAdmin()) {
             abort(403, 'Superadmin access required.');
         }
 
-        // Must be on admin domain
-        $host = $request->getHost();
-        if ($host !== 'admin.easyai.local') {
+        // Reads from config/domains.php → env('ADMIN_DOMAIN')
+        if ($request->getHost() !== config('domains.admin')) {
             abort(403, 'Access denied.');
         }
 

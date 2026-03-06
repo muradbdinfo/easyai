@@ -1,12 +1,6 @@
 <?php
 
 // FILE: app/Models/User.php
-// CHANGES from original:
-//   + 'is_active' added to $fillable
-//   + 'is_active' cast to boolean
-//   + teamInvitations() relationship
-//   + projectMembers() relationship
-//   + sentInvitations() relationship
 
 namespace App\Models;
 
@@ -26,6 +20,7 @@ class User extends Authenticatable
         'password',
         'role',
         'is_active',
+        'notification_preferences', // ADDED
     ];
 
     protected $hidden = [
@@ -34,9 +29,10 @@ class User extends Authenticatable
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password'          => 'hashed',
-        'is_active'         => 'boolean',
+        'email_verified_at'        => 'datetime',
+        'password'                 => 'hashed',
+        'is_active'                => 'boolean',
+        'notification_preferences' => 'array', // ADDED
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -86,19 +82,28 @@ class User extends Authenticatable
     /** Check if user has access to a specific project */
     public function canAccessProject(Project $project): bool
     {
-        // Admins and project owners can always access
         if ($this->isAdmin() || $this->isSuperAdmin()) {
             return true;
         }
 
-        // If project is not restricted, all tenant members can access
         if (!$project->is_restricted) {
             return true;
         }
 
-        // Restricted project: check explicit membership
         return ProjectMember::where('project_id', $project->id)
             ->where('user_id', $this->id)
             ->exists();
+    }
+
+    // ─── Notification Helpers ─────────────────────────────────────  ADDED
+
+    public function getNotificationPreferences(): array
+    {
+        return $this->notification_preferences ?? [
+            'quota_warning'   => true,
+            'quota_exceeded'  => true,
+            'payment_confirm' => true,
+            'team_invitation' => true,
+        ];
     }
 }
