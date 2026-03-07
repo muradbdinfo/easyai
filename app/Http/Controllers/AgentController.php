@@ -15,8 +15,11 @@ class AgentController extends Controller
         $tenant = app('tenant');
 
         abort_if($project->tenant_id !== $tenant->id, 403);
-        abort_if($chat->tenant_id !== $tenant->id, 403);
-        abort_if($chat->isClosed(), 422, 'Chat is closed.');
+        abort_if($chat->tenant_id    !== $tenant->id, 403);
+
+        if ($chat->isClosed()) {
+            return response()->json(['success' => false, 'message' => 'Chat is closed.'], 422);
+        }
 
         $validated = $request->validate([
             'goal'      => ['required', 'string', 'max:2000'],
@@ -34,7 +37,15 @@ class AgentController extends Controller
 
         RunAgentJob::dispatch($agentRun->id, $tenant->id, $request->user()->id);
 
-        return back()->with('agent_run_id', $agentRun->id);
+        // Return JSON — AgentPanel.vue uses axios, not Inertia
+        return response()->json([
+            'success' => true,
+            'message' => 'Agent started.',
+            'data'    => [
+                'agent_run_id' => $agentRun->id,
+                'status'       => 'running',
+            ],
+        ], 202);
     }
 
     public function steps(Request $request, Project $project, Chat $chat, AgentRun $agentRun)
@@ -42,12 +53,15 @@ class AgentController extends Controller
         $tenant = app('tenant');
 
         abort_if($agentRun->tenant_id !== $tenant->id, 403);
-        abort_if($agentRun->chat_id !== $chat->id, 403);
+        abort_if($agentRun->chat_id   !== $chat->id,   403);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'run'   => $agentRun->only(['id', 'status', 'steps_count', 'tokens_used', 'final_answer', 'error_message']),
+                'run'   => $agentRun->only([
+                    'id', 'status', 'steps_count',
+                    'tokens_used', 'final_answer', 'error_message',
+                ]),
                 'steps' => $agentRun->steps()->orderBy('step_number')->get(),
             ],
         ]);
@@ -63,6 +77,10 @@ class AgentController extends Controller
             $agentRun->update(['status' => 'stopped']);
         }
 
-        return back()->with('success', 'Agent stopped.');
+        return response()->json([
+            'success' => true,
+            'message' => 'Agent stopped.',
+            'data'    => ['status' => 'stopped'],
+        ]);
     }
 }

@@ -91,6 +91,7 @@ class HandleInertiaRequests extends Middleware
             'sidebar_projects' => $sidebarProjects,
             'templates'        => $templates,
             'ollama_models'    => array_values($ollamaModels),
+            'has_agent_addon'  => $tenant ? $tenant->hasAddon('agent-ai') : false,
             'theme' => \App\Services\ThemeService::get(),
             'flash' => [
                 'success' => $request->session()->get('success'),
