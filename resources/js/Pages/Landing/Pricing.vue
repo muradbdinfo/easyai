@@ -65,7 +65,7 @@ defineProps({
                     </div>
                 </div>
 
-                <!-- ── Add-ons section ──────────────────────────────────── -->
+                <!-- Add-ons section -->
                 <div v-if="addons.length" class="mb-14">
 
                     <div class="text-center mb-10">
@@ -85,7 +85,6 @@ defineProps({
                              class="bg-slate-900 border border-slate-700 rounded-2xl p-6 flex flex-col gap-4
                                     hover:border-slate-500 transition-colors">
 
-                            <!-- Name + price -->
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <div class="flex items-center gap-2 mb-1">
@@ -104,7 +103,6 @@ defineProps({
                                 </div>
                             </div>
 
-                            <!-- Features -->
                             <ul v-if="addon.features?.length" class="space-y-1.5">
                                 <li v-for="f in addon.features" :key="f"
                                     class="flex items-center gap-2 text-sm text-slate-300">
@@ -117,14 +115,14 @@ defineProps({
                                 </li>
                             </ul>
 
-                            <!-- CTA -->
-                            <Link :href="route('register')"
+                            <!-- CHANGED: route('addons.index') so after login user lands on purchase page -->
+                            <Link :href="route('addons.index')"
                                   class="mt-auto block text-center py-2.5 rounded-xl text-sm font-semibold
                                          border transition-all hover:text-white"
                                   :style="`border-color: var(--brand); color: var(--brand);`"
                                   @mouseover="$event.target.style.background='var(--brand)';$event.target.style.color='#fff'"
                                   @mouseout="$event.target.style.background='transparent';$event.target.style.color='var(--brand)'">
-                                Get Started →
+                                Get {{ addon.name }} →
                             </Link>
                         </div>
                     </div>
