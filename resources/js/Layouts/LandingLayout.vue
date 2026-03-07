@@ -10,6 +10,10 @@ const theme = computed(() => page.props.theme ?? {})
 const brand = computed(() => theme.value.brand ?? '#6366f1')
 const dark  = computed(() => (theme.value.landing_mode ?? 'dark') !== 'light')
 
+// Auth state — HandleInertiaRequests shares auth.user globally
+const isLoggedIn = computed(() => !!page.props.auth?.user)
+const user       = computed(() => page.props.auth?.user)
+
 const vars = computed(() => ({
     '--brand':   brand.value,
     '--bg':      dark.value ? '#020617' : '#f8fafc',
@@ -52,12 +56,23 @@ const vars = computed(() => ({
                     <Link v-if="settings.show_contact" :href="route('landing.contact')" class="hover:opacity-100 opacity-75 transition-opacity">Contact</Link>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <!-- CHANGED: swap guest CTAs for dashboard link when logged in -->
+                <div v-if="!isLoggedIn" class="flex items-center gap-3">
                     <Link :href="route('login')" class="text-sm opacity-70 hover:opacity-100 transition-opacity" style="color:var(--heading)">Sign in</Link>
                     <Link :href="route('register')" class="text-sm px-4 py-2 rounded-lg text-white font-medium hover:opacity-90 transition-opacity" style="background:var(--brand)">
                         {{ settings.hero_cta }}
                     </Link>
                 </div>
+                <div v-else class="flex items-center gap-3">
+                    <span class="text-sm opacity-70" style="color:var(--heading)">{{ user.name }}</span>
+                    <Link :href="route('dashboard')" class="text-sm px-4 py-2 rounded-lg text-white font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5" style="background:var(--brand)">
+                        Go to Dashboard
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                        </svg>
+                    </Link>
+                </div>
+
             </div>
         </nav>
 
@@ -73,7 +88,9 @@ const vars = computed(() => ({
                     <Link :href="route('landing.home')" class="hover:opacity-100 transition-opacity">Home</Link>
                     <Link v-if="settings.show_pricing" :href="route('landing.pricing')" class="hover:opacity-100 transition-opacity">Pricing</Link>
                     <Link v-if="settings.show_contact" :href="route('landing.contact')" class="hover:opacity-100 transition-opacity">Contact</Link>
-                    <Link :href="route('login')" class="hover:opacity-100 transition-opacity">Sign in</Link>
+                    <!-- CHANGED: swap Sign in for Dashboard link when logged in -->
+                    <Link v-if="!isLoggedIn" :href="route('login')" class="hover:opacity-100 transition-opacity">Sign in</Link>
+                    <Link v-else :href="route('dashboard')" class="hover:opacity-100 transition-opacity">Dashboard</Link>
                 </div>
             </div>
         </footer>
