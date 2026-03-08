@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\NewUserRegistered;
+use App\Services\NotificationService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,8 @@ use Inertia\Response;
 
 class AuthController extends Controller
 {
+    public function __construct(private NotificationService $notifications) {}
+
     // ─── Show Login ───────────────────────────────────────────────
     public function showLogin(Request $request): Response
     {
@@ -102,13 +105,16 @@ class AuthController extends Controller
         // Fire Laravel's built-in email verification event
         event(new Registered($user));
 
-        // Notify all superadmins
+        // Email notification to all superadmins
         User::where('role', 'superadmin')->each(
             fn($admin) => $admin->notify(new NewUserRegistered($user))
         );
 
+        // In-app DB notification to all superadmins
+        $this->notifications->newUserRegistered($user);
+
         Auth::login($user);
-        $request->session()->regenerate(); // ← added: regenerate after login
+        $request->session()->regenerate();
 
         return redirect()->route('verification.notice');
     }
@@ -120,7 +126,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // ← added: redirect admin domain to its own login
         if ($request->getHost() === config('domains.admin')) {
             return redirect('http://' . config('domains.admin') . '/login');
         }

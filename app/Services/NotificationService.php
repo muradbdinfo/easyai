@@ -1,9 +1,13 @@
 <?php
 
+// FILE: app/Services/NotificationService.php
+
 namespace App\Services;
 
 use App\Mail\PaymentApprovedMail;
 use App\Mail\PaymentSubmittedMail;
+use App\Mail\TenantActivatedMail;
+use App\Mail\TenantSuspendedMail;
 use App\Models\AppNotification;
 use App\Models\Payment;
 use App\Models\Tenant;
@@ -46,18 +50,69 @@ class NotificationService
         }
     }
 
-    // ── Admin: payment submitted (COD, SSL, Stripe) ───────────────
+    // ── Admin: new user registered ─────────────────────────────────
 
-    /**
-     * Notify all superadmins when any payment is submitted.
-     * DB + email.
-     */
+    public function newUserRegistered(User $newUser): void
+    {
+        $superadmins = User::where('role', 'superadmin')->get();
+
+        foreach ($superadmins as $admin) {
+            $this->notify(
+                null,
+                $admin,
+                'new_user_registered',
+                'New user registered: ' . $newUser->name,
+                $newUser->email . ' signed up and is on a 14-day Starter trial.',
+                '/tenants',
+            );
+        }
+    }
+
+    // ── Tenant: activated by admin ─────────────────────────────────
+
+    public function tenantActivated(Tenant $tenant): void
+    {
+        $users = User::where('tenant_id', $tenant->id)->get();
+
+        foreach ($users as $user) {
+            $this->notify(
+                $tenant,
+                $user,
+                'tenant_activated',
+                'Your workspace has been activated!',
+                'Great news — your EasyAI workspace "' . $tenant->name . '" is now active. You can use all features on your current plan.',
+                '/dashboard',
+            );
+            $this->sendEmail($user, new TenantActivatedMail($tenant));
+        }
+    }
+
+    // ── Tenant: suspended by admin ─────────────────────────────────
+
+    public function tenantSuspended(Tenant $tenant): void
+    {
+        $users = User::where('tenant_id', $tenant->id)->get();
+
+        foreach ($users as $user) {
+            $this->notify(
+                $tenant,
+                $user,
+                'tenant_suspended',
+                'Your workspace has been suspended',
+                'Your EasyAI workspace "' . $tenant->name . '" has been suspended by the admin. Please contact support for assistance.',
+                '/billing',
+            );
+            $this->sendEmail($user, new TenantSuspendedMail($tenant));
+        }
+    }
+
+    // ── Admin: payment submitted ───────────────────────────────────
+
     public function adminPaymentReceived(Payment $payment): void
     {
         $superadmins = User::where('role', 'superadmin')->get();
 
         foreach ($superadmins as $admin) {
-            // DB notification (tenant_id = null is now allowed)
             $this->notify(
                 null,
                 $admin,
@@ -67,23 +122,17 @@ class NotificationService
                 '/payments',
             );
 
-            // Email
             $this->sendEmail($admin, new PaymentSubmittedMail($payment));
         }
     }
 
-    // ── User: payment approved / plan activated ───────────────────
+    // ── User: payment approved / plan activated ────────────────────
 
-    /**
-     * Notify all users in a tenant when their payment is approved.
-     * DB + email.
-     */
     public function paymentApproved(Tenant $tenant, string $planName, float $amount, ?Payment $payment = null): void
     {
         $users = User::where('tenant_id', $tenant->id)->get();
 
         foreach ($users as $user) {
-            // DB notification
             $this->notify(
                 $tenant,
                 $user,
@@ -93,7 +142,6 @@ class NotificationService
                 '/billing',
             );
 
-            // Email (only if we have the payment model)
             if ($payment) {
                 $this->sendEmail($user, new PaymentApprovedMail($payment));
             }
@@ -104,11 +152,9 @@ class NotificationService
 
     public function quotaWarning(Tenant $tenant): void
     {
-        $admins = User::where('tenant_id', $tenant->id)
-            ->whereIn('role', ['admin', 'member'])
-            ->get();
+        $users = User::where('tenant_id', $tenant->id)->get();
 
-        foreach ($admins as $user) {
+        foreach ($users as $user) {
             $exists = AppNotification::where('tenant_id', $tenant->id)
                 ->where('user_id', $user->id)
                 ->where('type', 'quota_warning')
@@ -129,11 +175,9 @@ class NotificationService
 
     public function quotaExceeded(Tenant $tenant): void
     {
-        $admins = User::where('tenant_id', $tenant->id)
-            ->whereIn('role', ['admin', 'member'])
-            ->get();
+        $users = User::where('tenant_id', $tenant->id)->get();
 
-        foreach ($admins as $user) {
+        foreach ($users as $user) {
             $exists = AppNotification::where('tenant_id', $tenant->id)
                 ->where('user_id', $user->id)
                 ->where('type', 'quota_exceeded')

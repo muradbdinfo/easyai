@@ -1,7 +1,4 @@
 <?php
-
-// FILE: app/Notifications/NewUserRegistered.php
-
 namespace App\Notifications;
 
 use App\Models\User;

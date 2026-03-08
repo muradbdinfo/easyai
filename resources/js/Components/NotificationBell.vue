@@ -1,27 +1,37 @@
 <script setup>
+// FILE: resources/js/Components/NotificationBell.vue
 import { ref, onMounted, onUnmounted } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { Bell, X, CheckCheck, AlertCircle, Zap, CreditCard, TrendingUp, DollarSign } from 'lucide-vue-next'
+import {
+    Bell, X, CheckCheck,
+    AlertCircle, Zap, CreditCard, TrendingUp,
+    DollarSign, CheckCircle, ShieldOff,
+} from 'lucide-vue-next'
 
 const open          = ref(false)
 const notifications = ref([])
 const unreadCount   = ref(0)
 let   pollTimer     = null
 
+// ── Icon + color map ───────────────────────────────────────────────
 const typeIcon = {
     quota_warning:    Zap,
     quota_exceeded:   AlertCircle,
     payment_approved: CreditCard,
-    payment_received: DollarSign,   // ← new
+    payment_received: DollarSign,
     plan_changed:     TrendingUp,
+    tenant_activated: CheckCircle,   // ← new
+    tenant_suspended: ShieldOff,     // ← new
 }
 
 const typeColor = {
     quota_warning:    'text-amber-400 bg-amber-400/10',
     quota_exceeded:   'text-red-400 bg-red-400/10',
     payment_approved: 'text-green-400 bg-green-400/10',
-    payment_received: 'text-indigo-400 bg-indigo-400/10', // ← new
+    payment_received: 'text-indigo-400 bg-indigo-400/10',
     plan_changed:     'text-indigo-400 bg-indigo-400/10',
+    tenant_activated: 'text-green-400 bg-green-400/10',   // ← new
+    tenant_suspended: 'text-red-400 bg-red-400/10',       // ← new
 }
 
 async function fetchNotifications() {
@@ -71,7 +81,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
 <template>
     <div class="relative">
-
         <button
             @click="open = !open"
             class="relative p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"

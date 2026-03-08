@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\UsageLog;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class TenantController extends Controller
 {
+    public function __construct(private NotificationService $notifications) {}
+
     public function index(Request $request)
     {
         $query = Tenant::with('plan')->withCount('users');
@@ -36,9 +39,7 @@ class TenantController extends Controller
         $tenant->load(['plan', 'users']);
 
         $usage_logs = UsageLog::where('tenant_id', $tenant->id)
-            ->latest()
-            ->take(20)
-            ->get();
+            ->latest()->take(20)->get();
 
         $plans = Plan::where('is_active', true)->get(['id', 'name', 'price', 'monthly_token_limit']);
 
@@ -51,9 +52,7 @@ class TenantController extends Controller
 
     public function updatePlan(Request $request, Tenant $tenant)
     {
-        $request->validate([
-            'plan_id' => ['required', 'exists:plans,id'],
-        ]);
+        $request->validate(['plan_id' => ['required', 'exists:plans,id']]);
 
         $plan = Plan::findOrFail($request->plan_id);
 
@@ -61,6 +60,9 @@ class TenantController extends Controller
             'plan_id'     => $plan->id,
             'token_quota' => $plan->monthly_token_limit,
         ]);
+
+        // Notify tenant users about plan change
+        $this->notifications->planChanged($tenant, $plan->name);
 
         return back()->with('success', "Plan updated to {$plan->name}.");
     }
@@ -71,8 +73,18 @@ class TenantController extends Controller
             'status' => ['required', 'in:active,suspended,trial'],
         ]);
 
-        $tenant->update(['status' => $request->status]);
+        $oldStatus = $tenant->status;
+        $newStatus = $request->status;
 
-        return back()->with('success', "Tenant status updated to {$request->status}.");
+        $tenant->update(['status' => $newStatus]);
+
+        // Only fire notification when status actually changes
+        if ($newStatus === 'active' && $oldStatus !== 'active') {
+            $this->notifications->tenantActivated($tenant);
+        } elseif ($newStatus === 'suspended' && $oldStatus !== 'suspended') {
+            $this->notifications->tenantSuspended($tenant);
+        }
+
+        return back()->with('success', "Tenant status updated to {$newStatus}.");
     }
 }

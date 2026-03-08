@@ -1,27 +1,39 @@
 <script setup>
+// FILE: resources/js/Components/AdminNotificationBell.vue
 import { ref, onMounted, onUnmounted } from 'vue'
 import { router } from '@inertiajs/vue3'
-import { Bell, X, CheckCheck, AlertCircle, Zap, CreditCard, TrendingUp, DollarSign } from 'lucide-vue-next'
+import {
+    Bell, X, CheckCheck,
+    AlertCircle, Zap, CreditCard, TrendingUp,
+    DollarSign, CheckCircle, ShieldOff, UserPlus,
+} from 'lucide-vue-next'
 
 const open          = ref(false)
 const notifications = ref([])
 const unreadCount   = ref(0)
 let   pollTimer     = null
 
+// ── Icon + color map ───────────────────────────────────────────────
 const typeIcon = {
-    quota_warning:    Zap,
-    quota_exceeded:   AlertCircle,
-    payment_approved: CreditCard,
-    payment_received: DollarSign,   // ← new
-    plan_changed:     TrendingUp,
+    quota_warning:       Zap,
+    quota_exceeded:      AlertCircle,
+    payment_approved:    CreditCard,
+    payment_received:    DollarSign,
+    plan_changed:        TrendingUp,
+    tenant_activated:    CheckCircle,
+    tenant_suspended:    ShieldOff,
+    new_user_registered: UserPlus,    // ← new
 }
 
 const typeColor = {
-    quota_warning:    'text-amber-400 bg-amber-400/10',
-    quota_exceeded:   'text-red-400 bg-red-400/10',
-    payment_approved: 'text-green-400 bg-green-400/10',
-    payment_received: 'text-indigo-400 bg-indigo-400/10', // ← new
-    plan_changed:     'text-indigo-400 bg-indigo-400/10',
+    quota_warning:       'text-amber-500 bg-amber-500/10',
+    quota_exceeded:      'text-red-500 bg-red-500/10',
+    payment_approved:    'text-green-500 bg-green-500/10',
+    payment_received:    'text-indigo-500 bg-indigo-500/10',
+    plan_changed:        'text-indigo-500 bg-indigo-500/10',
+    tenant_activated:    'text-green-500 bg-green-500/10',
+    tenant_suspended:    'text-red-500 bg-red-500/10',
+    new_user_registered: 'text-violet-500 bg-violet-500/10',   // ← new
 }
 
 async function fetchNotifications() {
@@ -42,7 +54,8 @@ async function markRead(id, actionUrl) {
 
     if (actionUrl) {
         open.value = false
-        router.visit(actionUrl)
+        // Admin panel redirects need the admin domain prefix
+        router.visit('http://' + window.location.host + actionUrl)
     }
 }
 
@@ -71,15 +84,14 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
 <template>
     <div class="relative">
-
         <button
             @click="open = !open"
-            class="relative p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            class="relative p-2 rounded-lg transition-colors text-slate-500 hover:text-slate-700 hover:bg-slate-100"
         >
             <Bell class="w-4 h-4" />
             <span
                 v-if="unreadCount > 0"
-                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-indigo-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5"
+                class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5"
             >
                 {{ unreadCount > 9 ? '9+' : unreadCount }}
             </span>
@@ -87,19 +99,19 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
         <div
             v-if="open"
-            class="absolute right-0 top-10 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50"
+            class="absolute right-0 top-10 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50"
         >
-            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-                <span class="text-white text-sm font-semibold">Notifications</span>
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                <span class="text-slate-700 text-sm font-semibold">Notifications</span>
                 <div class="flex items-center gap-2">
                     <button
                         v-if="unreadCount > 0"
                         @click="markAllRead"
-                        class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1"
+                        class="text-indigo-600 hover:text-indigo-500 text-xs flex items-center gap-1"
                     >
                         <CheckCheck class="w-3 h-3" /> All read
                     </button>
-                    <button @click="open = false" class="text-slate-500 hover:text-slate-300">
+                    <button @click="open = false" class="text-slate-400 hover:text-slate-600">
                         <X class="w-4 h-4" />
                     </button>
                 </div>
@@ -107,31 +119,31 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
             <div class="max-h-80 overflow-y-auto">
                 <div v-if="!notifications.length" class="px-4 py-8 text-center">
-                    <Bell class="w-7 h-7 text-slate-700 mx-auto mb-2" />
-                    <p class="text-slate-600 text-xs">No notifications yet</p>
+                    <Bell class="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                    <p class="text-slate-400 text-xs">No notifications yet</p>
                 </div>
 
                 <div
                     v-for="n in notifications"
                     :key="n.id"
                     @click="markRead(n.id, n.action_url)"
-                    class="flex items-start gap-3 px-4 py-3 border-b border-slate-800/50 cursor-pointer transition-colors"
-                    :class="n.read_at ? 'opacity-60 hover:bg-slate-800/30' : 'hover:bg-slate-800'"
+                    class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 cursor-pointer transition-colors"
+                    :class="n.read_at ? 'opacity-50 hover:bg-slate-50' : 'bg-indigo-50/30 hover:bg-slate-50'"
                 >
                     <div
                         class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                        :class="typeColor[n.type] ?? 'text-slate-400 bg-slate-800'"
+                        :class="typeColor[n.type] ?? 'text-slate-500 bg-slate-100'"
                     >
                         <component :is="typeIcon[n.type] ?? Bell" class="w-3.5 h-3.5" />
                     </div>
 
                     <div class="flex-1 min-w-0">
                         <div class="flex items-start justify-between gap-2">
-                            <p class="text-white text-xs font-medium leading-snug">{{ n.title }}</p>
-                            <span v-if="!n.read_at" class="w-1.5 h-1.5 bg-indigo-500 rounded-full shrink-0 mt-1" />
+                            <p class="text-slate-700 text-xs font-medium leading-snug">{{ n.title }}</p>
+                            <span v-if="!n.read_at" class="w-1.5 h-1.5 bg-indigo-600 rounded-full shrink-0 mt-1" />
                         </div>
-                        <p v-if="n.body" class="text-slate-500 text-xs mt-0.5 leading-snug line-clamp-2">{{ n.body }}</p>
-                        <p class="text-slate-700 text-xs mt-1">{{ timeAgo(n.created_at) }}</p>
+                        <p v-if="n.body" class="text-slate-400 text-xs mt-0.5 leading-snug line-clamp-2">{{ n.body }}</p>
+                        <p class="text-slate-300 text-xs mt-1">{{ timeAgo(n.created_at) }}</p>
                     </div>
                 </div>
             </div>
