@@ -6,6 +6,7 @@ use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use Illuminate\Support\Facades\Log;
 
 class BillingService
 {
@@ -38,16 +39,16 @@ class BillingService
             'status'     => 'active',
         ]);
 
-        // d) Generate invoice
-     $invoiceNumber = $payment->generateInvoiceNumber();
-$payment->update(['invoice_number' => $invoiceNumber]);
-$invoicePath = $this->invoiceService->generate($payment->fresh());
+        // d) Mark payment completed + set invoice number FIRST
+        $invoiceNumber = $payment->generateInvoiceNumber();
+        $payment->update([
+            'status'         => 'completed',
+            'invoice_number' => $invoiceNumber,
+        ]);
 
-        // e) Mark payment completed
-     $payment->update([
-    'status'       => 'completed',
-    'invoice_path' => $invoicePath,
-]);
+        // e) Generate invoice (status is now 'completed' in DB)
+        $invoicePath = $this->invoiceService->generate($payment->fresh());
+        $payment->update(['invoice_path' => $invoicePath]);
 
         // f) Notify tenant users (DB + email)
         try {
@@ -58,7 +59,7 @@ $invoicePath = $this->invoiceService->generate($payment->fresh());
                 $payment->fresh(),
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('BillingService notification failed: ' . $e->getMessage());
+            Log::warning('BillingService notification failed: ' . $e->getMessage());
         }
     }
 }
