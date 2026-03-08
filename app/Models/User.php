@@ -4,12 +4,13 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -20,7 +21,7 @@ class User extends Authenticatable
         'password',
         'role',
         'is_active',
-        'notification_preferences', // ADDED
+        'notification_preferences',
     ];
 
     protected $hidden = [
@@ -32,7 +33,7 @@ class User extends Authenticatable
         'email_verified_at'        => 'datetime',
         'password'                 => 'hashed',
         'is_active'                => 'boolean',
-        'notification_preferences' => 'array', // ADDED
+        'notification_preferences' => 'array',
     ];
 
     // ─── Relationships ────────────────────────────────────────────
@@ -95,7 +96,7 @@ class User extends Authenticatable
             ->exists();
     }
 
-    // ─── Notification Helpers ─────────────────────────────────────  ADDED
+    // ─── Notification Helpers ─────────────────────────────────────
 
     public function getNotificationPreferences(): array
     {

@@ -1,10 +1,18 @@
 <?php
 
+// FILE: app/Http/Controllers/AuthController.php
+
 namespace App\Http\Controllers;
 
+use App\Models\Plan;
+use App\Models\Project;
+use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\NewUserRegistered;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -13,8 +21,7 @@ class AuthController extends Controller
     // ─── Show Login ───────────────────────────────────────────────
     public function showLogin(Request $request): Response
     {
-        // Admin domain gets its own dedicated login page
-        if ($request->getHost() === 'admin.easyai.local') {
+        if ($request->getHost() === config('domains.admin')) {
             return Inertia::render('Admin/Login');
         }
 
@@ -39,9 +46,8 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // Superadmin → admin panel
         if ($user->isSuperAdmin()) {
-            return redirect()->intended('http://admin.easyai.local');
+            return redirect()->intended('http://' . config('domains.admin'));
         }
 
         return redirect()->intended(route('dashboard'));
@@ -58,15 +64,15 @@ class AuthController extends Controller
     {
         $request->validate([
             'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', 'min:8'],
         ]);
 
-        $plan = \App\Models\Plan::where('name', 'Starter')->first();
+        $plan = Plan::where('name', 'Starter')->firstOrFail();
 
-        $tenant = \App\Models\Tenant::create([
+        $tenant = Tenant::create([
             'name'          => $request->name . "'s Workspace",
-            'slug'          => \Illuminate\Support\Str::slug($request->name . '-' . uniqid()),
+            'slug'          => Str::slug($request->name . '-' . uniqid()),
             'plan_id'       => $plan->id,
             'token_quota'   => $plan->monthly_token_limit,
             'tokens_used'   => 0,
@@ -74,28 +80,37 @@ class AuthController extends Controller
             'trial_ends_at' => now()->addDays(14),
         ]);
 
-        $user = \App\Models\User::create([
+        $user = User::create([
             'name'      => $request->name,
             'email'     => $request->email,
             'password'  => $request->password,
             'role'      => 'admin',
             'tenant_id' => $tenant->id,
+            'is_active' => true,
         ]);
 
-        // Create default General project for standalone chats
-        \App\Models\Project::create([
+        // Default "General" project
+        Project::create([
             'tenant_id'   => $tenant->id,
             'user_id'     => $user->id,
             'name'        => 'General',
             'description' => 'Default workspace for quick chats.',
-            'model'       => config('ollama.model', 'llama3.2:latest'),
+            'model'       => config('ollama.model', 'llama3'),
             'is_default'  => true,
         ]);
 
-        Auth::login($user);
-        $request->session()->regenerate();
+        // Fire Laravel's built-in email verification event
+        event(new Registered($user));
 
-        return redirect()->intended(route('dashboard'));
+        // Notify all superadmins
+        User::where('role', 'superadmin')->each(
+            fn($admin) => $admin->notify(new NewUserRegistered($user))
+        );
+
+        Auth::login($user);
+        $request->session()->regenerate(); // ← added: regenerate after login
+
+        return redirect()->route('verification.notice');
     }
 
     // ─── Logout ───────────────────────────────────────────────────
@@ -105,9 +120,9 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // Redirect to correct domain login
-        if ($request->getHost() === 'admin.easyai.local') {
-            return redirect('http://admin.easyai.local/login');
+        // ← added: redirect admin domain to its own login
+        if ($request->getHost() === config('domains.admin')) {
+            return redirect('http://' . config('domains.admin') . '/login');
         }
 
         return redirect()->route('login');
