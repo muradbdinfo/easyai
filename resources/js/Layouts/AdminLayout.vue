@@ -20,6 +20,7 @@ const navItems = [
     { label:'Payments',  icon:CreditCard,      name:'admin.payments.index' },
     { label:'Usage',     icon:BarChart2,       name:'admin.usage.index'    },
     { label:'Settings',  icon:Settings,        name:'admin.settings.index' },
+    { label:'Users',     icon:Users,           name:'admin.users.index'    },
 ]
 
 function active(name) {

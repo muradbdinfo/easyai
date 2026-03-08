@@ -363,7 +363,15 @@ Route::delete('/addons/tenant/{tenantAddon}/revoke', [AdminAddonController::clas
         Route::get('/notifications',            [NotificationController::class, 'index'])->name('admin.notifications.index');
         Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('admin.notifications.read');
         Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('admin.notifications.readAll');
-        
+
+
+        // Users
+Route::get('/users',              [\App\Http\Controllers\Admin\UserController::class, 'index'])->name('admin.users.index');
+Route::put('/users/{user}/role',  [\App\Http\Controllers\Admin\UserController::class, 'updateRole'])->name('admin.users.role');
+Route::put('/users/{user}/status',[\App\Http\Controllers\Admin\UserController::class, 'toggleStatus'])->name('admin.users.status');
+Route::delete('/users/{user}',    [\App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('admin.users.destroy');
+
+
 
     }); // end superadmin middleware
 
