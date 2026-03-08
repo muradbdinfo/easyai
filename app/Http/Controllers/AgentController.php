@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateChatTitleJob;
 use App\Jobs\RunAgentJob;
 use App\Models\AgentRun;
 use App\Models\Chat;
@@ -36,6 +37,15 @@ class AgentController extends Controller
         ]);
 
         RunAgentJob::dispatch($agentRun->id, $tenant->id, $request->user()->id);
+
+        // Generate chat title from goal (same as normal chat does from first message)
+        if ($chat->title === 'New Chat' || empty($chat->title)) {
+            GenerateChatTitleJob::dispatch(
+                $chat->id,
+                $validated['goal'],
+                $chat->project->model ?? config('ollama.model')
+            );
+        }
 
         // Return JSON — AgentPanel.vue uses axios, not Inertia
         return response()->json([
