@@ -12,7 +12,10 @@ use Inertia\Inertia;
 
 class PaymentController extends Controller
 {
-    public function __construct(private BillingService $billingService) {}
+    public function __construct(
+        private BillingService $billingService,
+        private NotificationService $notificationService,
+    ) {}
 
     public function index(Request $request)
     {
@@ -23,13 +26,11 @@ class PaymentController extends Controller
             ]);
         }
 
-        $query = Payment::with(['tenant', 'plan', 'user'])
-            ->latest();
+        $query = Payment::with(['tenant', 'plan', 'user'])->latest();
 
         if ($request->filled('method')) {
             $query->where('method', $request->method);
         }
-
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -52,18 +53,13 @@ class PaymentController extends Controller
             'approved_at' => now(),
         ]);
 
+        // This also triggers paymentApproved notification inside BillingService
         $this->billingService->activatePlan(
             $payment->tenant,
             $payment->plan,
             $payment
         );
 
-        // Trigger notifications
-        try {
-            $notif = new NotificationService();
-            $notif->paymentApproved($payment->tenant, $payment->plan->name, $payment->amount);
-        } catch (\Throwable) {}
-
-        return back()->with('success', 'COD payment approved. Plan activated.');
+        return back()->with('success', 'COD payment approved. Plan activated and user notified.');
     }
 }

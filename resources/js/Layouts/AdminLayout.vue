@@ -2,7 +2,8 @@
 // FILE: resources/js/Layouts/AdminLayout.vue
 import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
-import { LayoutDashboard, Users, CreditCard, BarChart2, Settings, Shield, LogOut, Menu, X, Bell, Activity, Package, PuzzleIcon } from 'lucide-vue-next'
+import { LayoutDashboard, Users, CreditCard, BarChart2, Settings, Shield, LogOut, Menu, X, Activity, Package, PuzzleIcon } from 'lucide-vue-next'
+import AdminNotificationBell from '@/Components/AdminNotificationBell.vue'
 
 defineProps({ title: String })
 
@@ -28,7 +29,6 @@ function logout() { router.post(route('admin.logout')) }
 </script>
 
 <template>
-    <!-- --brand injected here, all accent elements reference it -->
     <div class="min-h-screen flex bg-slate-50" :style="{ '--brand': brand }">
 
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
@@ -86,9 +86,9 @@ function logout() { router.post(route('admin.logout')) }
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                        <Bell class="w-4 h-4"/>
-                    </button>
+                    <!-- ✅ Real notification bell (replaces static Bell icon) -->
+                    <AdminNotificationBell />
+
                     <div class="flex items-center gap-2 text-sm text-slate-600">
                         <Activity class="w-4 h-4 text-green-500"/><span>System OK</span>
                     </div>

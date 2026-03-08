@@ -359,6 +359,12 @@ Route::delete('/addons/tenant/{tenantAddon}/revoke', [AdminAddonController::clas
         Route::put('/settings/landing', [AdminSettingsController::class, 'updateLanding'])->name('admin.settings.landing');
         Route::put('/settings/theme', [AdminSettingsController::class, 'updateTheme'])->name('admin.settings.theme');
 
+        // ── Admin Notifications ────────────────────────────────────
+        Route::get('/notifications',            [NotificationController::class, 'index'])->name('admin.notifications.index');
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('admin.notifications.read');
+        Route::post('/notifications/read-all',  [NotificationController::class, 'markAllRead'])->name('admin.notifications.readAll');
+        
+
     }); // end superadmin middleware
 
 }); // end admin.easyai.local domain

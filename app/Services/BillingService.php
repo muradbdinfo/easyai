@@ -9,11 +9,14 @@ use App\Models\Tenant;
 
 class BillingService
 {
-    public function __construct(private InvoiceService $invoiceService) {}
+    public function __construct(
+        private InvoiceService $invoiceService,
+        private NotificationService $notificationService,
+    ) {}
 
     public function activatePlan(Tenant $tenant, Plan $plan, Payment $payment): void
     {
-        // a) Update tenant plan + quota
+        // a) Update tenant
         $tenant->update([
             'plan_id'     => $plan->id,
             'token_quota' => $plan->monthly_token_limit,
@@ -36,15 +39,26 @@ class BillingService
         ]);
 
         // d) Generate invoice
-        $invoiceNumber = $payment->generateInvoiceNumber();
-        $payment->update(['invoice_number' => $invoiceNumber]);
-
-        $invoicePath = $this->invoiceService->generate($payment->fresh());
+     $invoiceNumber = $payment->generateInvoiceNumber();
+$payment->update(['invoice_number' => $invoiceNumber]);
+$invoicePath = $this->invoiceService->generate($payment->fresh());
 
         // e) Mark payment completed
-        $payment->update([
-            'status'       => 'completed',
-            'invoice_path' => $invoicePath,
-        ]);
+     $payment->update([
+    'status'       => 'completed',
+    'invoice_path' => $invoicePath,
+]);
+
+        // f) Notify tenant users (DB + email)
+        try {
+            $this->notificationService->paymentApproved(
+                $tenant,
+                $plan->name,
+                $payment->amount,
+                $payment->fresh(),
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('BillingService notification failed: ' . $e->getMessage());
+        }
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Services\BillingService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -15,9 +16,12 @@ use Stripe\Checkout\Session as StripeSession;
 
 class BillingController extends Controller
 {
-    public function __construct(private BillingService $billingService) {}
+    public function __construct(
+        private BillingService $billingService,
+        private NotificationService $notificationService,
+    ) {}
 
-    // ── Index: current plan + payment history ─────────────────────
+    // ── Index ─────────────────────────────────────────────────────
     public function index()
     {
         $tenant   = app('tenant');
@@ -54,8 +58,6 @@ class BillingController extends Controller
     // ── Select payment method ─────────────────────────────────────
     public function selectPlan(Plan $plan)
     {
-        $tenant = app('tenant');
-
         return Inertia::render('Billing/SelectPayment', [
             'plan'        => $plan,
             'cod_enabled' => config('billing.cod_enabled', true),
@@ -76,6 +78,13 @@ class BillingController extends Controller
             'currency'  => 'BDT',
             'status'    => 'pending',
         ]);
+
+        // Notify admin (DB + email)
+        try {
+            $this->notificationService->adminPaymentReceived($payment->load(['tenant', 'plan']));
+        } catch (\Throwable $e) {
+            Log::warning('COD admin notification failed: ' . $e->getMessage());
+        }
 
         return redirect()->route('billing.index')
             ->with('success', 'COD request submitted. Admin will approve within 24 hours.');
@@ -152,7 +161,6 @@ class BillingController extends Controller
             return redirect()->route('billing.index');
         }
 
-        // Validate with SSLCommerz
         $validationUrl = config('sslcommerz.apiDomain')
             . config('sslcommerz.validationUrl')
             . '?val_id=' . $valId
@@ -175,6 +183,13 @@ class BillingController extends Controller
                     $payment->plan,
                     $payment
                 );
+
+                // Notify admin (DB + email)
+                try {
+                    $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
+                } catch (\Throwable $e) {
+                    Log::warning('SSL admin notification failed: ' . $e->getMessage());
+                }
 
                 return redirect()->route('billing.index')
                     ->with('success', 'Payment successful! Plan activated.');
@@ -211,7 +226,6 @@ class BillingController extends Controller
     // ── SSLCommerz IPN ────────────────────────────────────────────
     public function sslIpn(Request $request)
     {
-        // IPN for server-to-server notification (backup)
         Log::info('SSLCommerz IPN received', $request->all());
         return response('IPN received', 200);
     }
@@ -239,20 +253,18 @@ class BillingController extends Controller
                 'line_items'           => [[
                     'price_data' => [
                         'currency'     => 'usd',
-                        'product_data' => [
-                            'name' => 'EasyAI ' . $plan->name . ' Plan',
-                        ],
+                        'product_data' => ['name' => 'EasyAI ' . $plan->name . ' Plan'],
                         'unit_amount'  => (int)($plan->price * 100),
                     ],
                     'quantity' => 1,
                 ]],
-                'mode'              => 'payment',
-                'success_url'       => route('billing.stripe.success')
-                                     . '?session_id={CHECKOUT_SESSION_ID}'
-                                     . '&payment_id=' . $payment->id,
-                'cancel_url'        => route('billing.plans'),
+                'mode'                => 'payment',
+                'success_url'         => route('billing.stripe.success')
+                                        . '?session_id={CHECKOUT_SESSION_ID}'
+                                        . '&payment_id=' . $payment->id,
+                'cancel_url'          => route('billing.plans'),
                 'client_reference_id' => $payment->id,
-                'metadata'          => [
+                'metadata'            => [
                     'payment_id' => $payment->id,
                     'tenant_id'  => $tenant->id,
                     'plan_id'    => $plan->id,
@@ -287,15 +299,20 @@ class BillingController extends Controller
             $session = StripeSession::retrieve($sessionId);
 
             if ($session->payment_status === 'paid') {
-                $payment->update([
-                    'gateway_response' => (array) $session,
-                ]);
+                $payment->update(['gateway_response' => (array) $session]);
 
                 $this->billingService->activatePlan(
                     $payment->tenant,
                     $payment->plan,
                     $payment
                 );
+
+                // Notify admin (DB + email)
+                try {
+                    $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
+                } catch (\Throwable $e) {
+                    Log::warning('Stripe admin notification failed: ' . $e->getMessage());
+                }
 
                 return redirect()->route('billing.index')
                     ->with('success', 'Payment successful! Plan activated.');
@@ -340,6 +357,10 @@ class BillingController extends Controller
                         $payment->plan,
                         $payment
                     );
+                    // Admin notification via webhook (email only, safe)
+                    try {
+                        $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
+                    } catch (\Throwable) {}
                 }
             }
         }

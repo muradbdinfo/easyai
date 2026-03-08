@@ -9,21 +9,20 @@ class NotificationController extends Controller
 {
     public function index(Request $request)
     {
-        if (!$request->user()) {
+        $user = $request->user();
+        if (!$user) {
             return response()->json(['error' => 'Unauthenticated.'], 401);
         }
 
-        $user = $request->user();
+        $query = AppNotification::where('user_id', $user->id);
 
-        if (!$user->tenant_id) {
-            return response()->json(['notifications' => [], 'unread_count' => 0]);
+        // Superadmin has no tenant_id — query only by user_id
+        // Tenant users are also scoped by tenant_id for extra safety
+        if ($user->tenant_id) {
+            $query->where('tenant_id', $user->tenant_id);
         }
 
-        $notifications = AppNotification::where('user_id', $user->id)
-            ->where('tenant_id', $user->tenant_id)
-            ->orderBy('created_at', 'desc')
-            ->take(20)
-            ->get();
+        $notifications = $query->orderBy('created_at', 'desc')->take(20)->get();
 
         return response()->json([
             'notifications' => $notifications,
