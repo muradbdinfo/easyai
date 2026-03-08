@@ -359,6 +359,11 @@ Route::delete('/addons/tenant/{tenantAddon}/revoke', [AdminAddonController::clas
         Route::put('/settings/landing', [AdminSettingsController::class, 'updateLanding'])->name('admin.settings.landing');
         Route::put('/settings/theme', [AdminSettingsController::class, 'updateTheme'])->name('admin.settings.theme');
 
+
+        Route::post('/settings/superadmins',          [AdminSettingsController::class, 'storeSuperAdmin'])->name('admin.settings.superadmin.store');
+Route::delete('/settings/superadmins/{user}', [AdminSettingsController::class, 'deleteSuperAdmin'])->name('admin.settings.superadmin.delete');
+
+
         // ── Admin Notifications ────────────────────────────────────
         Route::get('/notifications',            [NotificationController::class, 'index'])->name('admin.notifications.index');
         Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('admin.notifications.read');

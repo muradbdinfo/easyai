@@ -3,31 +3,39 @@
 import { ref, computed } from 'vue'
 import { useForm, usePage, router } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
-import { Settings, Globe, Zap, Mail, Save, Image, Building2, CheckCircle, AlertCircle, Trash2, RefreshCw, Send, Layout, Plus, X, Palette, Sun, Moon } from 'lucide-vue-next'
+import {
+    Settings, Globe, Zap, Mail, Save, Image, Building2,
+    CheckCircle, AlertCircle, Trash2, RefreshCw, Send,
+    Layout, Plus, X, Palette, Sun, Moon,
+    Shield, UserPlus, Eye, EyeOff, Users
+} from 'lucide-vue-next'
 
-const props = defineProps({ platform: Object, ollama: Object, mail: Object, theme: Object, landing: Object })
+const props = defineProps({
+    platform:    Object,
+    ollama:      Object,
+    mail:        Object,
+    theme:       Object,
+    landing:     Object,
+    superadmins: { type: Array, default: () => [] },
+})
 
 const page      = usePage()
 const activeTab = ref('theme')
 const flash     = computed(() => page.props.flash ?? {})
 
 const tabs = [
-    { key:'theme',    label:'Theme',        icon:Palette },
-    { key:'platform', label:'Platform',     icon:Globe   },
-    { key:'ollama',   label:'Ollama',       icon:Zap     },
-    { key:'mail',     label:'Mail/SMTP',    icon:Mail    },
-    { key:'landing',  label:'Landing Page', icon:Layout  },
+    { key:'theme',        label:'Theme',        icon:Palette  },
+    { key:'platform',     label:'Platform',     icon:Globe    },
+    { key:'ollama',       label:'Ollama',       icon:Zap      },
+    { key:'mail',         label:'Mail/SMTP',    icon:Mail     },
+    { key:'landing',      label:'Landing Page', icon:Layout   },
+    { key:'superadmins',  label:'Superadmins',  icon:Shield   },
 ]
 
 const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm outline-none focus:border-indigo-400'
 
 // ── Theme ─────────────────────────────────────────────────────────
-const themeForm = useForm({
-    brand:        props.theme?.brand        ?? '#6366f1',
-    tenant_mode:  props.theme?.tenant_mode  ?? 'dark',
-    landing_mode: props.theme?.landing_mode ?? 'dark',
-})
-// Live preview while picking color
+const themeForm    = useForm({ brand: props.theme?.brand ?? '#6366f1', tenant_mode: props.theme?.tenant_mode ?? 'dark', landing_mode: props.theme?.landing_mode ?? 'dark' })
 const previewBrand = ref(props.theme?.brand ?? '#6366f1')
 
 // ── Platform ──────────────────────────────────────────────────────
@@ -63,26 +71,26 @@ function testOllama() {
 }
 
 // ── Mail ──────────────────────────────────────────────────────────
-const mailForm  = useForm({ host: props.mail.host ?? '', port: props.mail.port ?? 587, username: props.mail.username ?? '', password: '', from_name: props.mail.from_name ?? '', from_email: props.mail.from_email ?? '' })
-const testEmail = ref('')
-const mailTesting = ref(false)
+const mailForm    = useForm({ host: props.mail.host ?? '', port: props.mail.port ?? 587, username: props.mail.username ?? '', password: '', from_name: props.mail.from_name ?? '', from_email: props.mail.from_email ?? '' })
+const testMailTo  = ref('')
+const mailSending = ref(false)
 function sendTestMail() {
-    if (!testEmail.value) return; mailTesting.value = true
-    router.post(route('admin.settings.mail.test'), { email: testEmail.value }, { preserveScroll: true, onFinish: () => { mailTesting.value = false } })
+    if (!testMailTo.value) return; mailSending.value = true
+    router.post(route('admin.settings.mail.test'), { email: testMailTo.value }, {
+        preserveScroll: true, onFinish: () => { mailSending.value = false }
+    })
 }
 
-// ── Landing ───────────────────────────────────────────────────────
+// ── Landing ────────────────────────────────────────────────────────
 const defaultFeatures = [
-    { icon:'🧠', title:'AI Memory',          desc:'Projects remember context across conversations.' },
-    { icon:'📁', title:'Projects & Chats',   desc:'Organize work into projects with full history.' },
-    { icon:'📚', title:'Knowledge Base',     desc:'Upload docs. AI answers from your own data.'    },
-    { icon:'👥', title:'Team Collaboration', desc:'Invite teammates, assign roles.'                },
-    { icon:'🔒', title:'100% Private',       desc:'Self-hosted Ollama. Your data stays private.'   },
-    { icon:'💳', title:'Flexible Billing',   desc:'COD, bKash/Nagad via SSLCommerz, or Stripe.'    },
+    { icon:'🧠', title:'Long-Term Memory',    desc:'Summarizes past chats into project context.' },
+    { icon:'📁', title:'RAG Knowledge Base',  desc:'Upload docs and get AI answers from your data.' },
+    { icon:'👥', title:'Team Collaboration',  desc:'Invite teammates, assign roles, restrict projects.' },
+    { icon:'🔒', title:'100% Private',        desc:'Self-hosted Ollama. Data never leaves your server.' },
 ]
 const defaultFaq = [
-    { q:'Is my data private?',            a:'Yes. All AI processing via your own Ollama instance.' },
-    { q:'Which AI models are supported?', a:'Any Ollama model — llama3, mistral, codellama, gemma.' },
+    { q:'Is my data private?', a:'Yes. EasyAI is fully self-hosted.' },
+    { q:'Which AI models are supported?', a:'Any model supported by Ollama — llama3, mistral, codellama, gemma, and more.' },
 ]
 const landingForm = useForm({
     hero_title:    props.landing.hero_title    ?? 'Your Private AI Workspace',
@@ -100,6 +108,16 @@ function addFeature() { landingForm.features.push({ icon:'✨', title:'', desc:'
 function removeFeature(i) { landingForm.features.splice(i, 1) }
 function addFaq() { landingForm.faq.push({ q:'', a:'' }) }
 function removeFaq(i) { landingForm.faq.splice(i, 1) }
+
+// ── Superadmins ───────────────────────────────────────────────────
+const saForm    = useForm({ name: '', email: '', password: '', password_confirmation: '' })
+const showSaPw  = ref(false)
+const showSaCpw = ref(false)
+
+function deleteSuperAdmin(sa) {
+    if (!confirm(`Remove ${sa.name} as superadmin? They will lose all admin access.`)) return
+    router.delete(route('admin.settings.superadmin.delete', sa.id), { preserveScroll: true })
+}
 </script>
 
 <template>
@@ -113,6 +131,9 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
 
             <div v-if="flash.success" class="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2.5 rounded-lg">
                 <CheckCircle class="w-4 h-4 shrink-0"/> {{ flash.success }}
+            </div>
+            <div v-if="flash.error" class="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg">
+                <AlertCircle class="w-4 h-4 shrink-0"/> {{ flash.error }}
             </div>
 
             <!-- Tabs -->
@@ -128,11 +149,7 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
             <div v-if="activeTab==='theme'">
                 <form @submit.prevent="themeForm.put(route('admin.settings.theme'), { preserveScroll: true })">
                     <div class="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
-                        <h2 class="text-slate-700 font-semibold text-sm flex items-center gap-2">
-                            <Palette class="w-4 h-4 text-slate-400"/> Global Theme
-                        </h2>
-
-                        <!-- Brand color -->
+                        <h2 class="text-slate-700 font-semibold text-sm flex items-center gap-2"><Palette class="w-4 h-4 text-slate-400"/> Global Theme</h2>
                         <div>
                             <label class="block text-slate-500 text-xs mb-2">Brand / Accent Color</label>
                             <div class="flex items-center gap-3">
@@ -141,24 +158,20 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                                 <input v-model="themeForm.brand" type="text" maxlength="7"
                                        class="border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm font-mono w-28 outline-none focus:border-indigo-400"
                                        @input="previewBrand = themeForm.brand"/>
-                                <!-- Live preview -->
                                 <div class="flex items-center gap-2">
                                     <div class="w-8 h-8 rounded-lg border border-slate-200" :style="{background: previewBrand}"/>
                                     <div class="flex gap-1.5">
                                         <span v-for="c in ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#ec4899','#f97316']"
-                                              :key="c" class="w-5 h-5 rounded cursor-pointer border-2 transition-all hover:scale-110"
-                                              :style="{background:c, borderColor: themeForm.brand===c ? '#000':'transparent'}"
-                                              @click="themeForm.brand = c; previewBrand = c"/>
+                                              :key="c" @click="themeForm.brand=c; previewBrand=c"
+                                              class="w-5 h-5 rounded cursor-pointer border-2 transition-all hover:scale-110"
+                                              :style="{background:c, borderColor: themeForm.brand===c ? '#1e293b' : 'transparent'}"/>
                                     </div>
                                 </div>
                             </div>
-                            <p class="text-slate-400 text-xs mt-2">Applied to: sidebar active items, buttons, badges — on all panels and landing page.</p>
                         </div>
-
-                        <!-- Tenant mode -->
                         <div>
-                            <label class="block text-slate-500 text-xs mb-2">Tenant App Theme</label>
-                            <div class="flex gap-3">
+                            <label class="block text-slate-500 text-xs mb-2">Tenant App Mode</label>
+                            <div class="grid grid-cols-2 gap-3">
                                 <button type="button" @click="themeForm.tenant_mode='dark'"
                                         class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all"
                                         :class="themeForm.tenant_mode==='dark' ? 'border-indigo-500 bg-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
@@ -171,11 +184,9 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                                 </button>
                             </div>
                         </div>
-
-                        <!-- Landing mode -->
                         <div>
-                            <label class="block text-slate-500 text-xs mb-2">Landing Page Theme</label>
-                            <div class="flex gap-3">
+                            <label class="block text-slate-500 text-xs mb-2">Landing Page Mode</label>
+                            <div class="grid grid-cols-2 gap-3">
                                 <button type="button" @click="themeForm.landing_mode='dark'"
                                         class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 text-sm font-medium transition-all"
                                         :class="themeForm.landing_mode==='dark' ? 'border-indigo-500 bg-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
@@ -189,8 +200,7 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                             </div>
                             <p class="text-slate-400 text-xs mt-2">Admin panel always uses dark sidebar + white content.</p>
                         </div>
-
-                        <div class="flex justify-end pt-2">
+                        <div class="flex justify-end">
                             <button type="submit" :disabled="themeForm.processing"
                                     class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg disabled:opacity-50 transition-colors">
                                 <Save class="w-4 h-4"/> Save Theme
@@ -211,17 +221,17 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                         </div>
                         <div class="space-y-2">
                             <p class="text-slate-400 text-xs">PNG, JPG, SVG. Max 2MB.</p>
-                            <div class="flex gap-2 flex-wrap">
-                                <label class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg">
+                            <div class="flex gap-2">
+                                <label class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs rounded-lg cursor-pointer transition-colors">
                                     <Image class="w-3.5 h-3.5"/> Choose
                                     <input type="file" accept="image/*" class="hidden" @change="onLogoSelect"/>
                                 </label>
-                                <button v-if="logoFile" @click="uploadLogo" :disabled="logoUploading"
-                                        class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg disabled:opacity-50">
-                                    <Save class="w-3.5 h-3.5"/> {{ logoUploading ? 'Uploading...' : 'Upload' }}
+                                <button v-if="logoFile" type="button" @click="uploadLogo" :disabled="logoUploading"
+                                        class="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 text-xs rounded-lg disabled:opacity-50">
+                                    <Save class="w-3.5 h-3.5"/> {{ logoUploading ? 'Uploading…' : 'Upload' }}
                                 </button>
-                                <button v-if="logoPreview" @click="deleteLogo"
-                                        class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs rounded-lg">
+                                <button v-if="logoPreview && !logoFile" type="button" @click="deleteLogo"
+                                        class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs rounded-lg">
                                     <Trash2 class="w-3.5 h-3.5"/> Remove
                                 </button>
                             </div>
@@ -229,9 +239,9 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                     </div>
                 </div>
                 <div class="bg-white rounded-xl border border-slate-200 p-6">
-                    <h2 class="text-slate-700 font-semibold text-sm mb-4 flex items-center gap-2"><Globe class="w-4 h-4 text-slate-400"/> General</h2>
+                    <h2 class="text-slate-700 font-semibold text-sm mb-4 flex items-center gap-2"><Globe class="w-4 h-4 text-slate-400"/> App Info</h2>
                     <form @submit.prevent="platformForm.put(route('admin.settings.platform'), { preserveScroll: true })" class="space-y-4">
-                        <div><label class="block text-slate-500 text-xs mb-1">Platform Name</label><input v-model="platformForm.app_name" type="text" required :class="inp"/></div>
+                        <div><label class="block text-slate-500 text-xs mb-1">App Name</label><input v-model="platformForm.app_name" type="text" required :class="inp"/></div>
                         <div><label class="block text-slate-500 text-xs mb-1">Support Email</label><input v-model="platformForm.support_email" type="email" required :class="inp"/></div>
                         <div class="flex justify-end">
                             <button type="submit" :disabled="platformForm.processing"
@@ -253,9 +263,9 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                         <div class="flex items-center gap-3">
                             <button type="button" @click="testOllama" :disabled="ollamaStatus==='testing'"
                                     class="flex items-center gap-2 px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm rounded-lg disabled:opacity-50">
-                                <RefreshCw class="w-4 h-4" :class="ollamaStatus==='testing'?'animate-spin':''"/> Test
+                                <RefreshCw class="w-4 h-4" :class="ollamaStatus==='testing'?'animate-spin':''"/> Test Connection
                             </button>
-                            <span v-if="ollamaStatus==='ok'" class="flex items-center gap-1 text-green-600 text-xs"><CheckCircle class="w-4 h-4"/> Connected</span>
+                            <span v-if="ollamaStatus==='ok'"   class="flex items-center gap-1 text-green-600 text-xs"><CheckCircle class="w-4 h-4"/> Connected</span>
                             <span v-if="ollamaStatus==='fail'" class="flex items-center gap-1 text-red-500 text-xs"><AlertCircle class="w-4 h-4"/> Failed</span>
                         </div>
                         <div class="flex justify-end">
@@ -273,13 +283,17 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                 <div class="bg-white rounded-xl border border-slate-200 p-6">
                     <h2 class="text-slate-700 font-semibold text-sm mb-4 flex items-center gap-2"><Mail class="w-4 h-4 text-slate-400"/> SMTP</h2>
                     <form @submit.prevent="mailForm.put(route('admin.settings.mail'), { preserveScroll: true })" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">Host</label><input v-model="mailForm.host" :class="inp"/></div>
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">Port</label><input v-model="mailForm.port" type="number" :class="inp"/></div>
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">Username</label><input v-model="mailForm.username" :class="inp"/></div>
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">Password</label><input v-model="mailForm.password" type="password" placeholder="Keep blank to retain" :class="inp"/></div>
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">From Name</label><input v-model="mailForm.from_name" :class="inp"/></div>
-                            <div class="col-span-2 sm:col-span-1"><label class="block text-slate-500 text-xs mb-1">From Email</label><input v-model="mailForm.from_email" type="email" :class="inp"/></div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2"><label class="block text-slate-500 text-xs mb-1">Host</label><input v-model="mailForm.host" type="text" required placeholder="smtp.mailtrap.io" :class="inp+' font-mono'"/></div>
+                            <div><label class="block text-slate-500 text-xs mb-1">Port</label><input v-model="mailForm.port" type="number" required :class="inp+' font-mono'"/></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-slate-500 text-xs mb-1">Username</label><input v-model="mailForm.username" type="text" :class="inp"/></div>
+                            <div><label class="block text-slate-500 text-xs mb-1">Password</label><input v-model="mailForm.password" type="password" placeholder="Leave blank to keep current" :class="inp"/></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-slate-500 text-xs mb-1">From Name</label><input v-model="mailForm.from_name" type="text" required :class="inp"/></div>
+                            <div><label class="block text-slate-500 text-xs mb-1">From Email</label><input v-model="mailForm.from_email" type="email" required :class="inp"/></div>
                         </div>
                         <div class="flex justify-end">
                             <button type="submit" :disabled="mailForm.processing"
@@ -288,13 +302,13 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                             </button>
                         </div>
                     </form>
-                    <div class="mt-5 pt-5 border-t border-slate-100">
-                        <p class="text-slate-600 text-sm font-medium mb-3 flex items-center gap-2"><Send class="w-4 h-4 text-slate-400"/> Test Email</p>
+                    <div class="border-t border-slate-100 mt-5 pt-5">
+                        <h3 class="text-slate-600 text-xs font-semibold mb-3">Send Test Email</h3>
                         <div class="flex gap-2">
-                            <input v-model="testEmail" type="email" placeholder="you@example.com" :class="inp+' flex-1'"/>
-                            <button @click="sendTestMail" :disabled="mailTesting||!testEmail"
-                                    class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg disabled:opacity-50">
-                                <Send class="w-4 h-4"/> {{ mailTesting?'Sending...':'Send' }}
+                            <input v-model="testMailTo" type="email" placeholder="test@example.com" :class="inp"/>
+                            <button @click="sendTestMail" :disabled="mailSending"
+                                    class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg disabled:opacity-50 shrink-0">
+                                <Send class="w-4 h-4"/> {{ mailSending ? 'Sending…' : 'Send' }}
                             </button>
                         </div>
                     </div>
@@ -321,7 +335,7 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                             </div>
                         </div>
                     </div>
-                    <!-- Features -->
+
                     <div class="bg-white rounded-xl border border-slate-200 p-6 mb-5">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-slate-700 font-semibold text-sm">Feature Cards</h2>
@@ -338,29 +352,150 @@ function removeFaq(i) { landingForm.faq.splice(i, 1) }
                             </div>
                         </div>
                     </div>
-                    <!-- FAQ -->
+
                     <div class="bg-white rounded-xl border border-slate-200 p-6 mb-5">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-slate-700 font-semibold text-sm">FAQ Items</h2>
                             <button type="button" @click="addFaq" class="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs rounded-lg"><Plus class="w-3.5 h-3.5"/> Add</button>
                         </div>
                         <div class="space-y-2">
-                            <div v-for="(item,i) in landingForm.faq" :key="i" class="flex gap-2 items-start p-3 bg-slate-50 rounded-lg">
-                                <div class="flex-1 space-y-1.5">
-                                    <input v-model="item.q" type="text" placeholder="Question" :class="inp"/>
-                                    <textarea v-model="item.a" rows="2" placeholder="Answer" :class="inp+' resize-none'"></textarea>
+                            <div v-for="(f,i) in landingForm.faq" :key="i" class="p-3 bg-slate-50 rounded-lg space-y-1.5">
+                                <div class="flex gap-2">
+                                    <input v-model="f.q" type="text" placeholder="Question" :class="inp"/>
+                                    <button type="button" @click="removeFaq(i)" class="text-red-400 hover:text-red-600 p-1 shrink-0"><X class="w-4 h-4"/></button>
                                 </div>
-                                <button type="button" @click="removeFaq(i)" class="text-red-400 hover:text-red-600 p-1 mt-1"><X class="w-4 h-4"/></button>
+                                <textarea v-model="f.a" rows="2" placeholder="Answer" :class="inp+' resize-none'"></textarea>
                             </div>
                         </div>
                     </div>
+
                     <div class="flex justify-end">
                         <button type="submit" :disabled="landingForm.processing"
-                                class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg disabled:opacity-50">
-                            <Save class="w-4 h-4"/> Save Landing
+                                class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg disabled:opacity-50 transition-colors">
+                            <Save class="w-4 h-4"/> Save Landing Page
                         </button>
                     </div>
                 </form>
+            </div>
+
+            <!-- ── SUPERADMINS TAB ── -->
+            <div v-if="activeTab==='superadmins'" class="space-y-5">
+
+                <!-- Current list -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div class="flex items-center gap-2 px-6 py-4 border-b border-slate-100">
+                        <Users class="w-4 h-4 text-slate-400"/>
+                        <h2 class="text-slate-700 font-semibold text-sm">Current Superadmins</h2>
+                        <span class="ml-auto text-xs text-slate-400">{{ superadmins.length }} total</span>
+                    </div>
+                    <div class="divide-y divide-slate-100">
+                        <div v-for="sa in superadmins" :key="sa.id"
+                             class="flex items-center justify-between px-6 py-3.5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                    <Shield class="w-4 h-4 text-indigo-600"/>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-800">
+                                        {{ sa.name }}
+                                        <span v-if="sa.id === $page.props.auth?.user?.id"
+                                              class="ml-1.5 text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">you</span>
+                                    </p>
+                                    <p class="text-xs text-slate-400">{{ sa.email }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs text-slate-400 hidden sm:block">
+                                    Added {{ new Date(sa.created_at).toLocaleDateString() }}
+                                </span>
+                                <button v-if="sa.id !== $page.props.auth?.user?.id"
+                                        @click="deleteSuperAdmin(sa)"
+                                        class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Remove superadmin">
+                                    <Trash2 class="w-3.5 h-3.5"/>
+                                </button>
+                                <span v-else class="w-7 h-7"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add new -->
+                <div class="bg-white rounded-xl border border-slate-200 p-6">
+                    <h2 class="text-slate-700 font-semibold text-sm mb-5 flex items-center gap-2">
+                        <UserPlus class="w-4 h-4 text-slate-400"/> Add New Superadmin
+                    </h2>
+                    <form @submit.prevent="saForm.post(route('admin.settings.superadmin.store'), { preserveScroll: true, onSuccess: () => saForm.reset() })"
+                          class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-slate-500 text-xs mb-1">Full Name</label>
+                                <input v-model="saForm.name" type="text" required placeholder="John Doe" :class="inp"/>
+                                <p v-if="saForm.errors.name" class="text-red-500 text-xs mt-1">{{ saForm.errors.name }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 text-xs mb-1">Email</label>
+                                <input v-model="saForm.email" type="email" required placeholder="admin2@easyai.local" :class="inp"/>
+                                <p v-if="saForm.errors.email" class="text-red-500 text-xs mt-1">{{ saForm.errors.email }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 text-xs mb-1">Password</label>
+                                <div class="relative">
+                                    <input v-model="saForm.password" :type="showSaPw ? 'text' : 'password'"
+                                           required placeholder="Min 8 characters" :class="inp+' pr-10'"/>
+                                    <button type="button" @click="showSaPw = !showSaPw"
+                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <EyeOff v-if="showSaPw" class="w-4 h-4"/>
+                                        <Eye    v-else           class="w-4 h-4"/>
+                                    </button>
+                                </div>
+                                <p v-if="saForm.errors.password" class="text-red-500 text-xs mt-1">{{ saForm.errors.password }}</p>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 text-xs mb-1">Confirm Password</label>
+                                <div class="relative">
+                                    <input v-model="saForm.password_confirmation" :type="showSaCpw ? 'text' : 'password'"
+                                           required placeholder="Repeat password" :class="inp+' pr-10'"/>
+                                    <button type="button" @click="showSaCpw = !showSaCpw"
+                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                        <EyeOff v-if="showSaCpw" class="w-4 h-4"/>
+                                        <Eye    v-else            class="w-4 h-4"/>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                            <Shield class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"/>
+                            <p class="text-amber-700 text-xs leading-relaxed">
+                                Superadmins have <strong>full unrestricted access</strong> to all tenants, plans, payments and settings. Only add people you fully trust.
+                            </p>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button type="submit" :disabled="saForm.processing"
+                                    class="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg font-medium transition-colors disabled:opacity-50">
+                                <UserPlus class="w-4 h-4"/>
+                                {{ saForm.processing ? 'Creating…' : 'Create Superadmin' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Seeder bug fix notice -->
+                <div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-3">
+                    <AlertCircle class="w-4 h-4 text-red-500 shrink-0 mt-0.5"/>
+                    <div>
+                        <p class="text-red-700 text-xs font-semibold mb-1">Seeder bug fix</p>
+                        <p class="text-red-600 text-xs">
+                            If you seeded before fixing the plain-text password bug, run in tinker:
+                        </p>
+                        <code class="block mt-1.5 text-xs bg-red-100 text-red-800 px-3 py-2 rounded-lg font-mono">
+                            User::where('role','superadmin')->each(fn($u) => $u->update(['password' => bcrypt('your_new_password')]));
+                        </code>
+                    </div>
+                </div>
+
             </div>
 
         </div>

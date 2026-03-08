@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -30,16 +32,14 @@ class SettingsController extends Controller
                 'from_name'  => env('MAIL_FROM_NAME', ''),
                 'from_email' => env('MAIL_FROM_ADDRESS', ''),
             ],
-            // ── Theme ──────────────────────────────────────────────
             'theme' => [
                 'brand'        => \App\Models\Setting::get('theme_brand',        '#6366f1'),
                 'tenant_mode'  => \App\Models\Setting::get('theme_tenant_mode',  'dark'),
                 'landing_mode' => \App\Models\Setting::get('theme_landing_mode', 'dark'),
             ],
-            // ── Landing ────────────────────────────────────────────
             'landing' => [
                 'hero_title'    => \App\Models\Setting::get('landing_hero_title',    'Your Private AI Workspace'),
-                'hero_subtitle' => \App\Models\Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace for your team.'),
+                'hero_subtitle' => \App\Models\Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace.'),
                 'hero_cta'      => \App\Models\Setting::get('landing_hero_cta',      'Start Free Trial'),
                 'announcement'  => \App\Models\Setting::get('landing_announcement',  ''),
                 'show_pricing'  => \App\Models\Setting::get('landing_show_pricing', '1') === '1',
@@ -49,6 +49,11 @@ class SettingsController extends Controller
                 'features'      => json_decode(\App\Models\Setting::get('landing_features', '[]'), true) ?: [],
                 'faq'           => json_decode(\App\Models\Setting::get('landing_faq',      '[]'), true) ?: [],
             ],
+            // ── Superadmins ────────────────────────────────────────
+            'superadmins' => User::where('role', 'superadmin')
+                ->select('id', 'name', 'email', 'created_at')
+                ->latest()
+                ->get(),
         ]);
     }
 
@@ -105,9 +110,12 @@ class SettingsController extends Controller
     public function updateMail(Request $request)
     {
         $request->validate([
-            'host' => ['required','string'], 'port' => ['required','integer'],
-            'username' => ['nullable','string'], 'password' => ['nullable','string'],
-            'from_name' => ['required','string'], 'from_email' => ['required','email'],
+            'host'       => ['required','string'],
+            'port'       => ['required','integer'],
+            'username'   => ['nullable','string'],
+            'password'   => ['nullable','string'],
+            'from_name'  => ['required','string'],
+            'from_email' => ['required','email'],
         ]);
         foreach ($request->only('host','port','username','from_name','from_email') as $k => $v) {
             \App\Models\Setting::set('mail_'.$k, $v);
@@ -164,5 +172,42 @@ class SettingsController extends Controller
         \App\Models\Setting::set('landing_features',     json_encode($request->features ?? []));
         \App\Models\Setting::set('landing_faq',          json_encode($request->faq ?? []));
         return back()->with('success', 'Landing page saved.');
+    }
+
+    // ── Superadmins ────────────────────────────────────────────────
+    public function storeSuperAdmin(Request $request)
+    {
+        $request->validate([
+            'name'                  => ['required', 'string', 'max:100'],
+            'email'                 => ['required', 'email', 'unique:users,email'],
+            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['required'],
+        ]);
+
+        User::create([
+            'name'      => $request->name,
+            'email'     => $request->email,
+            'password'  => bcrypt($request->password),
+            'role'      => 'superadmin',
+            'tenant_id' => null,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', "Superadmin {$request->name} created.");
+    }
+
+    public function deleteSuperAdmin(User $user)
+    {
+        abort_if($user->id === auth()->id(), 403, 'You cannot delete yourself.');
+        abort_if($user->role !== 'superadmin', 403);
+
+        if (User::where('role', 'superadmin')->count() <= 1) {
+            return back()->withErrors(['delete' => 'Cannot delete the last superadmin.']);
+        }
+
+        $user->tokens()->delete();
+        $user->delete();
+
+        return back()->with('success', 'Superadmin removed.');
     }
 }
