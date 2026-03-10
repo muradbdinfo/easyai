@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
@@ -13,27 +12,19 @@ use Inertia\Inertia;
 class PaymentController extends Controller
 {
     public function __construct(
-        private BillingService $billingService,
+        private BillingService      $billingService,
         private NotificationService $notificationService,
     ) {}
 
     public function index(Request $request)
     {
         if (!Schema::hasTable('payments')) {
-            return Inertia::render('Admin/Payments/Index', [
-                'payments' => [],
-                'filters'  => [],
-            ]);
+            return Inertia::render('Admin/Payments/Index', ['payments' => [], 'filters' => []]);
         }
 
         $query = Payment::with(['tenant', 'plan', 'user'])->latest();
-
-        if ($request->filled('method')) {
-            $query->where('method', $request->method);
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        if ($request->filled('method')) $query->where('method', $request->method);
+        if ($request->filled('status'))  $query->where('status', $request->status);
 
         return Inertia::render('Admin/Payments/Index', [
             'payments' => $query->paginate(20),
@@ -48,16 +39,13 @@ class PaymentController extends Controller
         abort_if($payment->method !== 'cod', 422, 'Not a COD payment.');
         abort_if(!$payment->isPending(), 422, 'Payment already processed.');
 
-        $payment->update([
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-        ]);
+        $payment->update(['approved_by' => $request->user()->id, 'approved_at' => now()]);
 
-        // This also triggers paymentApproved notification inside BillingService
         $this->billingService->activatePlan(
             $payment->tenant,
             $payment->plan,
-            $payment
+            $payment,
+            $payment->seats ?? 1   // pass seats stored on payment record
         );
 
         return back()->with('success', 'COD payment approved. Plan activated and user notified.');

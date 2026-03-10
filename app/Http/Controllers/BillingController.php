@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
@@ -17,24 +16,16 @@ use Stripe\Checkout\Session as StripeSession;
 class BillingController extends Controller
 {
     public function __construct(
-        private BillingService $billingService,
+        private BillingService      $billingService,
         private NotificationService $notificationService,
     ) {}
 
     // ── Index ─────────────────────────────────────────────────────
     public function index()
     {
-        $tenant   = app('tenant');
-        $payments = Payment::where('tenant_id', $tenant->id)
-            ->with('plan')
-            ->latest()
-            ->paginate(10);
-
-        $subscription = Subscription::where('tenant_id', $tenant->id)
-            ->where('status', 'active')
-            ->with('plan')
-            ->latest()
-            ->first();
+        $tenant       = app('tenant');
+        $payments     = Payment::where('tenant_id', $tenant->id)->with('plan')->latest()->paginate(10);
+        $subscription = Subscription::where('tenant_id', $tenant->id)->where('status', 'active')->with('plan')->latest()->first();
 
         return Inertia::render('Billing/Index', [
             'payments'     => $payments,
@@ -47,7 +38,7 @@ class BillingController extends Controller
     public function plans()
     {
         $tenant = app('tenant');
-        $plans  = Plan::where('is_active', true)->orderBy('price')->get();
+        $plans  = Plan::where('is_active', true)->orderBy('price')->orderBy('price_per_seat')->get();
 
         return Inertia::render('Billing/Plans', [
             'plans'        => $plans,
@@ -64,22 +55,32 @@ class BillingController extends Controller
         ]);
     }
 
+    // ── Seat resolver (flat plans always = 1) ─────────────────────
+    private function resolveSeats(Request $request, Plan $plan): int
+    {
+        if (!$plan->isSeatBased()) return 1;
+        $seats = max((int) $request->input('seats', $plan->min_seats), $plan->min_seats);
+        if ($plan->max_seats) $seats = min($seats, $plan->max_seats);
+        return $seats;
+    }
+
     // ── COD ───────────────────────────────────────────────────────
     public function processCod(Request $request, Plan $plan)
     {
         $tenant = app('tenant');
+        $seats  = $this->resolveSeats($request, $plan);
 
         $payment = Payment::create([
             'tenant_id' => $tenant->id,
             'user_id'   => $request->user()->id,
             'plan_id'   => $plan->id,
+            'seats'     => $seats,
             'method'    => 'cod',
-            'amount'    => $plan->price,
+            'amount'    => $plan->priceForSeats($seats),
             'currency'  => 'BDT',
             'status'    => 'pending',
         ]);
 
-        // Notify admin (DB + email)
         try {
             $this->notificationService->adminPaymentReceived($payment->load(['tenant', 'plan']));
         } catch (\Throwable $e) {
@@ -94,13 +95,16 @@ class BillingController extends Controller
     public function processSslcommerz(Request $request, Plan $plan)
     {
         $tenant = app('tenant');
+        $seats  = $this->resolveSeats($request, $plan);
+        $amount = $plan->priceForSeats($seats);
 
         $payment = Payment::create([
             'tenant_id' => $tenant->id,
             'user_id'   => $request->user()->id,
             'plan_id'   => $plan->id,
+            'seats'     => $seats,
             'method'    => 'sslcommerz',
-            'amount'    => $plan->price,
+            'amount'    => $amount,
             'currency'  => 'BDT',
             'status'    => 'pending',
         ]);
@@ -108,7 +112,7 @@ class BillingController extends Controller
         $postData = [
             'store_id'         => config('sslcommerz.store_id'),
             'store_passwd'     => config('sslcommerz.store_pass'),
-            'total_amount'     => $plan->price,
+            'total_amount'     => $amount,
             'currency'         => 'BDT',
             'tran_id'          => 'EASYAI-' . $payment->id . '-' . time(),
             'success_url'      => route('billing.sslcommerz.success'),
@@ -122,10 +126,11 @@ class BillingController extends Controller
             'cus_city'         => 'Dhaka',
             'cus_country'      => 'Bangladesh',
             'shipping_method'  => 'NO',
-            'product_name'     => 'EasyAI ' . $plan->name . ' Plan',
+            'product_name'     => 'EasyAI ' . $plan->name . ($plan->isSeatBased() ? " ({$seats} seats)" : ' Plan'),
             'product_category' => 'Software',
             'product_profile'  => 'non-physical-goods',
             'value_a'          => $payment->id,
+            'value_b'          => $seats,  // seats passed through callback
         ];
 
         $apiUrl = config('sslcommerz.apiDomain') . config('sslcommerz.apiUrl');
@@ -141,7 +146,6 @@ class BillingController extends Controller
 
             Log::error('SSLCommerz init failed', $data);
             return back()->withErrors(['error' => 'Payment gateway error. Please try again.']);
-
         } catch (\Throwable $e) {
             Log::error('SSLCommerz exception: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Could not connect to payment gateway.']);
@@ -152,11 +156,11 @@ class BillingController extends Controller
     public function sslSuccess(Request $request)
     {
         $paymentId = $request->input('value_a');
+        $seats     = (int) $request->input('value_b', 1);
         $tranId    = $request->input('tran_id');
         $valId     = $request->input('val_id');
 
         $payment = Payment::find($paymentId);
-
         if (!$payment || $payment->status === 'completed') {
             return redirect()->route('billing.index');
         }
@@ -173,57 +177,39 @@ class BillingController extends Controller
             $data     = $response->json();
 
             if (isset($data['status']) && $data['status'] === 'VALID') {
-                $payment->update([
-                    'transaction_id'   => $tranId,
-                    'gateway_response' => $data,
-                ]);
+                $payment->update(['transaction_id' => $tranId, 'gateway_response' => $data]);
 
-                $this->billingService->activatePlan(
-                    $payment->tenant,
-                    $payment->plan,
-                    $payment
-                );
+                $this->billingService->activatePlan($payment->tenant, $payment->plan, $payment, $seats);
 
-                // Notify admin (DB + email)
                 try {
                     $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
                 } catch (\Throwable $e) {
                     Log::warning('SSL admin notification failed: ' . $e->getMessage());
                 }
 
-                return redirect()->route('billing.index')
-                    ->with('success', 'Payment successful! Plan activated.');
+                return redirect()->route('billing.index')->with('success', 'Payment successful! Plan activated.');
             }
-
         } catch (\Throwable $e) {
             Log::error('SSLCommerz validation error: ' . $e->getMessage());
         }
 
         $payment->update(['status' => 'failed']);
-        return redirect()->route('billing.index')
-            ->withErrors(['error' => 'Payment validation failed.']);
+        return redirect()->route('billing.index')->withErrors(['error' => 'Payment validation failed.']);
     }
 
-    // ── SSLCommerz: fail / cancel ─────────────────────────────────
+    // ── SSLCommerz: fail / cancel / IPN ──────────────────────────
     public function sslFail(Request $request)
     {
-        if ($id = $request->input('value_a')) {
-            Payment::find($id)?->update(['status' => 'failed']);
-        }
-        return redirect()->route('billing.index')
-            ->withErrors(['error' => 'Payment failed. Please try again.']);
+        if ($id = $request->input('value_a')) Payment::find($id)?->update(['status' => 'failed']);
+        return redirect()->route('billing.index')->withErrors(['error' => 'Payment failed. Please try again.']);
     }
 
     public function sslCancel(Request $request)
     {
-        if ($id = $request->input('value_a')) {
-            Payment::find($id)?->update(['status' => 'failed']);
-        }
-        return redirect()->route('billing.index')
-            ->withErrors(['error' => 'Payment cancelled.']);
+        if ($id = $request->input('value_a')) Payment::find($id)?->update(['status' => 'failed']);
+        return redirect()->route('billing.index')->withErrors(['error' => 'Payment cancelled.']);
     }
 
-    // ── SSLCommerz IPN ────────────────────────────────────────────
     public function sslIpn(Request $request)
     {
         Log::info('SSLCommerz IPN received', $request->all());
@@ -234,6 +220,8 @@ class BillingController extends Controller
     public function processStripe(Request $request, Plan $plan)
     {
         $tenant = app('tenant');
+        $seats  = $this->resolveSeats($request, $plan);
+        $amount = $plan->priceForSeats($seats);
 
         Stripe::setApiKey(config('cashier.secret'));
 
@@ -241,8 +229,9 @@ class BillingController extends Controller
             'tenant_id' => $tenant->id,
             'user_id'   => $request->user()->id,
             'plan_id'   => $plan->id,
+            'seats'     => $seats,
             'method'    => 'stripe',
-            'amount'    => $plan->price,
+            'amount'    => $amount,
             'currency'  => 'USD',
             'status'    => 'pending',
         ]);
@@ -253,28 +242,20 @@ class BillingController extends Controller
                 'line_items'           => [[
                     'price_data' => [
                         'currency'     => 'usd',
-                        'product_data' => ['name' => 'EasyAI ' . $plan->name . ' Plan'],
-                        'unit_amount'  => (int)($plan->price * 100),
+                        'product_data' => ['name' => 'EasyAI ' . $plan->name . ($plan->isSeatBased() ? " ({$seats} seats)" : ' Plan')],
+                        'unit_amount'  => (int) ($amount * 100),
                     ],
                     'quantity' => 1,
                 ]],
                 'mode'                => 'payment',
-                'success_url'         => route('billing.stripe.success')
-                                        . '?session_id={CHECKOUT_SESSION_ID}'
-                                        . '&payment_id=' . $payment->id,
+                'success_url'         => route('billing.stripe.success') . '?session_id={CHECKOUT_SESSION_ID}&payment_id=' . $payment->id,
                 'cancel_url'          => route('billing.plans'),
                 'client_reference_id' => $payment->id,
-                'metadata'            => [
-                    'payment_id' => $payment->id,
-                    'tenant_id'  => $tenant->id,
-                    'plan_id'    => $plan->id,
-                ],
+                'metadata'            => ['payment_id' => $payment->id, 'tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'seats' => $seats],
             ]);
 
             $payment->update(['transaction_id' => $session->id]);
-
             return redirect($session->url);
-
         } catch (\Throwable $e) {
             Log::error('Stripe error: ' . $e->getMessage());
             $payment->update(['status' => 'failed']);
@@ -289,7 +270,6 @@ class BillingController extends Controller
         $sessionId = $request->input('session_id');
 
         $payment = Payment::find($paymentId);
-
         if (!$payment || $payment->status === 'completed') {
             return redirect()->route('billing.index');
         }
@@ -299,32 +279,25 @@ class BillingController extends Controller
             $session = StripeSession::retrieve($sessionId);
 
             if ($session->payment_status === 'paid') {
+                $seats = (int) ($session->metadata->seats ?? 1);
                 $payment->update(['gateway_response' => (array) $session]);
 
-                $this->billingService->activatePlan(
-                    $payment->tenant,
-                    $payment->plan,
-                    $payment
-                );
+                $this->billingService->activatePlan($payment->tenant, $payment->plan, $payment, $seats);
 
-                // Notify admin (DB + email)
                 try {
                     $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
                 } catch (\Throwable $e) {
                     Log::warning('Stripe admin notification failed: ' . $e->getMessage());
                 }
 
-                return redirect()->route('billing.index')
-                    ->with('success', 'Payment successful! Plan activated.');
+                return redirect()->route('billing.index')->with('success', 'Payment successful! Plan activated.');
             }
-
         } catch (\Throwable $e) {
             Log::error('Stripe success error: ' . $e->getMessage());
         }
 
         $payment->update(['status' => 'failed']);
-        return redirect()->route('billing.index')
-            ->withErrors(['error' => 'Payment verification failed.']);
+        return redirect()->route('billing.index')->withErrors(['error' => 'Payment verification failed.']);
     }
 
     // ── Stripe: webhook ───────────────────────────────────────────
@@ -335,11 +308,7 @@ class BillingController extends Controller
 
         try {
             Stripe::setApiKey(config('cashier.secret'));
-            $event = \Stripe\Webhook::constructEvent(
-                $payload,
-                $sigHeader,
-                config('cashier.webhook.secret')
-            );
+            $event = \Stripe\Webhook::constructEvent($payload, $sigHeader, config('cashier.webhook.secret'));
         } catch (\Throwable $e) {
             Log::error('Stripe webhook error: ' . $e->getMessage());
             return response('Webhook error', 400);
@@ -348,16 +317,12 @@ class BillingController extends Controller
         if ($event->type === 'checkout.session.completed') {
             $session   = $event->data->object;
             $paymentId = $session->metadata->payment_id ?? null;
+            $seats     = (int) ($session->metadata->seats ?? 1);
 
             if ($paymentId) {
                 $payment = Payment::find($paymentId);
                 if ($payment && $payment->isPending()) {
-                    $this->billingService->activatePlan(
-                        $payment->tenant,
-                        $payment->plan,
-                        $payment
-                    );
-                    // Admin notification via webhook (email only, safe)
+                    $this->billingService->activatePlan($payment->tenant, $payment->plan, $payment, $seats);
                     try {
                         $this->notificationService->adminPaymentReceived($payment->fresh()->load(['tenant', 'plan']));
                     } catch (\Throwable) {}
@@ -374,10 +339,8 @@ class BillingController extends Controller
         $tenant = app('tenant');
         abort_if($payment->tenant_id !== $tenant->id, 403);
         abort_if(!$payment->invoice_path, 404);
-
         $path = storage_path('app/' . $payment->invoice_path);
         abort_if(!file_exists($path), 404);
-
         return response()->download($path, $payment->invoice_number . '.pdf');
     }
 }
