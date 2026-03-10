@@ -30,6 +30,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\AddonController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\Admin\AddonController as AdminAddonController;
+use App\Http\Controllers\GitHubController;
 use Inertia\Inertia;
 
 
@@ -88,6 +89,19 @@ Route::domain(config('domains.app'))->group(function () {
 
             // ── Auth + Tenant ──────────────────────────────────────────────
             Route::middleware('tenant')->group(function () {
+
+
+
+            // GitHub Integration
+Route::get('/github/redirect',              [GitHubController::class, 'redirect'])->name('github.redirect');
+Route::get('/github/callback',              [GitHubController::class, 'callback'])->name('github.callback');
+Route::post('/github/disconnect',           [GitHubController::class, 'disconnect'])->name('github.disconnect');
+Route::get('/github/repos',                 [GitHubController::class, 'repos'])->name('github.repos');
+Route::get('/github/contents',              [GitHubController::class, 'contents'])->name('github.contents');
+Route::post('/github/import',               [GitHubController::class, 'import'])->name('github.import');
+Route::delete('/github/files/{file}',       [GitHubController::class, 'deleteFile'])->name('github.file.delete');
+Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'])->name('github.file.sync');
+
 
                 // ── Add-on store (all tenants can view & purchase) ─────────
                 Route::get('/addons',                    [AddonController::class, 'index'])->name('addons.index');
@@ -225,6 +239,7 @@ Route::domain(config('domains.app'))->group(function () {
                 Route::post('/settings/api-keys',         [SettingsController::class, 'createApiKey'])->name('settings.apikey.create');
                 Route::delete('/settings/api-keys/{id}',  [SettingsController::class, 'deleteApiKey'])->name('settings.apikey.delete');
                 Route::put('/settings/notifications',     [SettingsController::class, 'updateNotifications'])->name('settings.notifications');
+                Route::get('/settings/integrations', [SettingsController::class, 'integrations'])->name('settings.integrations');
 
             }); // end tenant middleware
 

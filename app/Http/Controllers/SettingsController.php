@@ -6,11 +6,38 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use App\Models\GitHubConnection;
+use App\Models\Project;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class SettingsController extends Controller
 {
+
+
+public function integrations()
+    {
+        $tenant = app('tenant');
+        $conn   = GitHubConnection::where('tenant_id', $tenant->id)
+            ->where('user_id', Auth::id())
+            ->first();
+
+        $projects = Project::where('tenant_id', $tenant->id)
+            ->select('id', 'name')
+            ->latest()
+            ->get();
+
+        return Inertia::render('Settings/Integrations', [
+            'github' => [
+                'connected'   => (bool) $conn,
+                'github_user' => $conn?->github_user,
+            ],
+            'projects' => $projects,
+        ]);
+    }
+
+    
     // ── Only admin/superadmin may manage workspace ────────────────
     private function requireAdmin(): void
     {

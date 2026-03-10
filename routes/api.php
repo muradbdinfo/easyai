@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\TeamController as ApiTeamController;
 use App\Http\Controllers\Api\V1\TenantController;
 use App\Http\Controllers\Api\V1\AddonController as ApiAddonController;
 use App\Http\Controllers\Api\V1\AgentController as ApiAgentController;
+use App\Http\Controllers\Api\V1\IntegrationController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,9 @@ Route::prefix('v1')->group(function () {
         \App\Http\Middleware\TenantMiddleware::class,
         'throttle:60,1',
     ])->group(function () {
+
+
+    Route::get('projects/{project}/integration-files', [IntegrationController::class, 'files']);
 
 
     // ── Add-on API ────────────────────────────────────────────────────────────

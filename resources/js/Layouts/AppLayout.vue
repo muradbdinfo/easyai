@@ -5,7 +5,7 @@ import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     LayoutDashboard, FolderOpen, CreditCard, BarChart2,
     LogOut, Menu, X, Bot, FileText, Users, Settings,
-    User, Lock                                        // ← Lock added
+    User, Lock, Plug                                        // ← Lock added
 } from 'lucide-vue-next'
 import TokenBar from '@/Components/TokenBar.vue'
 import UpgradeModal from '@/Components/UpgradeModal.vue'
@@ -106,6 +106,18 @@ const hoverLeave    = (e, path) => { if (!isActive(path)) { e.currentTarget.styl
                     <!-- Lock badge: shown to members as a visual hint -->
                     <Lock v-if="!isAdmin" class="w-3 h-3 ml-auto opacity-40"/>
                 </Link>
+
+
+<Link :href="route('settings.integrations')"
+      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+      :style="navStyle('/settings/integrations')"
+      @mouseenter="e => hoverEnter(e, '/settings/integrations')"
+      @mouseleave="e => hoverLeave(e, '/settings/integrations')"
+      @click="sidebarOpen = false">
+    <Plug class="w-4 h-4 shrink-0"/> Integrations
+</Link>
+
+                
             </nav>
 
             <!-- Projects tree -->
