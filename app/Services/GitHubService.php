@@ -39,7 +39,7 @@ class GitHubService
                 'redirect_uri'  => $this->redirectUri,
             ]);
 
-        return $response->json();
+        return $response->json() ?? [];
     }
 
     public function getUser(string $token): array
@@ -48,7 +48,7 @@ class GitHubService
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get('https://api.github.com/user');
 
-        return $response->json();
+        return $response->json() ?? [];
     }
 
     public function listRepos(string $token, int $page = 1): array
@@ -65,26 +65,27 @@ class GitHubService
         return $response->json() ?? [];
     }
 
-    public function listContents(string $token, string $repo, string $path = ''): array
+    public function listContents(string $token, string $repo, ?string $path = ''): array
     {
-        $url = "https://api.github.com/repos/{$repo}/contents/{$path}";
+        $path = $path ?? '';
+        $url  = "https://api.github.com/repos/{$repo}/contents/{$path}";
 
         $response = Http::withToken($token)
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get($url);
 
         if (!$response->successful()) {
-            return [];
+            return ['message' => $response->json('message') ?? 'GitHub API error'];
         }
 
         $items = $response->json();
 
-        // GitHub returns object (not array) for single file
+        // GitHub returns object (not array) for single file path
         if (isset($items['type'])) {
             return [$items];
         }
 
-        return $items ?? [];
+        return is_array($items) ? $items : [];
     }
 
     public function getFileContent(string $token, string $repo, string $path): string
@@ -102,7 +103,7 @@ class GitHubService
         $data = $response->json();
 
         // GitHub returns base64-encoded content
-        if (isset($data['encoding']) && $data['encoding'] === 'base64') {
+        if (isset($data['encoding']) && $data['encoding'] === 'base64' && isset($data['content'])) {
             return base64_decode(str_replace("\n", '', $data['content']));
         }
 

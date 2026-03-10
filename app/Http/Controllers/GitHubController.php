@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Auth;
 class GitHubController extends Controller
 {
     public function __construct(
-        private GitHubService  $github,
+        private GitHubService   $github,
         private ChunkingService $chunker
     ) {}
 
@@ -29,12 +29,12 @@ class GitHubController extends Controller
     {
         $code = $request->get('code');
         if (!$code) {
-            return redirect('/settings?tab=integrations')->with('error', 'GitHub connection cancelled.');
+            return redirect()->route('settings.integrations')->with('error', 'GitHub connection cancelled.');
         }
 
         $tokenData = $this->github->exchangeCode($code);
         if (empty($tokenData['access_token'])) {
-            return redirect('/settings?tab=integrations')->with('error', 'GitHub OAuth failed.');
+            return redirect()->route('settings.integrations')->with('error', 'GitHub OAuth failed. Try again.');
         }
 
         $token  = $tokenData['access_token'];
@@ -52,7 +52,7 @@ class GitHubController extends Controller
             ]
         );
 
-        return redirect('/settings?tab=integrations')->with('success', 'GitHub connected.');
+        return redirect()->route('settings.integrations')->with('success', 'GitHub connected successfully.');
     }
 
     public function disconnect()
@@ -69,42 +69,62 @@ class GitHubController extends Controller
         $conn = $this->connection();
         if (!$conn) return response()->json(['error' => 'Not connected.'], 403);
 
-        $repos = $this->github->listRepos($conn->access_token, (int) $request->get('page', 1));
+        try {
+            $repos = $this->github->listRepos($conn->access_token, (int) $request->get('page', 1));
 
-        return response()->json([
-            'data' => array_map(fn($r) => [
-                'full_name'   => $r['full_name'],
-                'name'        => $r['name'],
-                'private'     => $r['private'],
-                'description' => $r['description'],
-                'updated_at'  => $r['updated_at'],
-            ], $repos),
-        ]);
+            if (!is_array($repos) || isset($repos['message'])) {
+                return response()->json(['data' => [], 'error' => $repos['message'] ?? 'GitHub error']);
+            }
+
+            return response()->json([
+                'data' => array_map(fn($r) => [
+                    'full_name'   => $r['full_name'] ?? '',
+                    'name'        => $r['name'] ?? '',
+                    'private'     => $r['private'] ?? false,
+                    'description' => $r['description'] ?? '',
+                    'updated_at'  => $r['updated_at'] ?? '',
+                ], $repos),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['data' => [], 'error' => $e->getMessage()], 200);
+        }
     }
 
     public function contents(Request $request)
     {
-        $request->validate(['repo' => 'required|string', 'path' => 'nullable|string']);
+        $request->validate([
+            'repo' => 'required|string',
+            'path' => 'nullable|string',
+        ]);
 
         $conn = $this->connection();
         if (!$conn) return response()->json(['error' => 'Not connected.'], 403);
 
-        $items = $this->github->listContents(
-            $conn->access_token,
-            $request->repo,
-            $request->get('path', '')
-        );
+        try {
+            $items = $this->github->listContents(
+                $conn->access_token,
+                $request->repo,
+                (string) $request->get('path', '')
+            );
 
-        $mapped = array_map(fn($i) => [
-            'name' => $i['name'],
-            'path' => $i['path'],
-            'type' => $i['type'],
-            'size' => $i['size'] ?? 0,
-        ], $items);
+            if (!is_array($items) || isset($items['message'])) {
+                return response()->json(['data' => [], 'error' => $items['message'] ?? 'GitHub error']);
+            }
 
-        usort($mapped, fn($a, $b) => $a['type'] === 'dir' ? -1 : 1);
+            $mapped = array_map(fn($i) => [
+                'name' => $i['name'] ?? '',
+                'path' => $i['path'] ?? '',
+                'type' => $i['type'] ?? 'file',
+                'size' => $i['size'] ?? 0,
+            ], $items);
 
-        return response()->json(['data' => $mapped]);
+            usort($mapped, fn($a, $b) => $a['type'] === 'dir' ? -1 : 1);
+
+            return response()->json(['data' => $mapped]);
+
+        } catch (\Exception $e) {
+            return response()->json(['data' => [], 'error' => $e->getMessage()], 200);
+        }
     }
 
     public function import(Request $request)
@@ -124,26 +144,55 @@ class GitHubController extends Controller
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-        $content = $this->github->getFileContent($conn->access_token, $request->repo, $request->path);
-        if (empty($content)) {
-            return response()->json(['error' => 'Could not fetch file.'], 422);
+        try {
+            $content = $this->github->getFileContent(
+                $conn->access_token,
+                $request->repo,
+                $request->path
+            );
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Could not fetch file: ' . $e->getMessage()], 422);
         }
+
+        if (empty($content)) {
+            return response()->json(['error' => 'File is empty or could not be fetched.'], 422);
+        }
+
         if (!mb_check_encoding($content, 'UTF-8')) {
-            return response()->json(['error' => 'Binary files not supported.'], 422);
+            return response()->json(['error' => 'Binary files are not supported.'], 422);
         }
 
         $externalId = $request->repo . ':' . $request->path;
 
         $file = IntegrationFile::updateOrCreate(
-            ['tenant_id' => $tenant->id, 'project_id' => $project->id, 'source' => 'github', 'external_id' => $externalId],
-            ['name' => $request->name, 'path' => $request->path, 'content' => $content, 'byte_size' => strlen($content), 'synced_at' => now()]
+            [
+                'tenant_id'   => $tenant->id,
+                'project_id'  => $project->id,
+                'source'      => 'github',
+                'external_id' => $externalId,
+            ],
+            [
+                'name'      => $request->name,
+                'path'      => $request->path,
+                'content'   => $content,
+                'byte_size' => strlen($content),
+                'synced_at' => now(),
+            ]
         );
 
         $this->storeChunks($file, $project->id, $tenant->id, $content, $request->name);
 
-        return response()->json(['success' => true, 'message' => 'File imported.', 'data' => [
-            'id' => $file->id, 'name' => $file->name, 'byte_size' => $file->byte_size,
-        ]]);
+        return response()->json([
+            'success' => true,
+            'message' => 'File imported successfully.',
+            'data'    => [
+                'id'        => $file->id,
+                'name'      => $file->name,
+                'path'      => $file->path,
+                'byte_size' => $file->byte_size,
+                'synced_at' => $file->synced_at,
+            ],
+        ]);
     }
 
     public function syncFile(IntegrationFile $file)
@@ -154,20 +203,33 @@ class GitHubController extends Controller
         if (!$conn) return response()->json(['error' => 'Not connected.'], 403);
 
         [$repo, $path] = explode(':', $file->external_id, 2);
-        $content = $this->github->getFileContent($conn->access_token, $repo, $path);
-        if (empty($content)) return response()->json(['error' => 'Could not fetch file.'], 422);
 
-        $file->update(['content' => $content, 'byte_size' => strlen($content), 'synced_at' => now()]);
+        try {
+            $content = $this->github->getFileContent($conn->access_token, $repo, $path);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Could not fetch file: ' . $e->getMessage()], 422);
+        }
+
+        if (empty($content)) {
+            return response()->json(['error' => 'File is empty or could not be fetched.'], 422);
+        }
+
+        $file->update([
+            'content'   => $content,
+            'byte_size' => strlen($content),
+            'synced_at' => now(),
+        ]);
+
         $this->storeChunks($file, $file->project_id, $file->tenant_id, $content, $file->name);
 
-        return response()->json(['success' => true, 'message' => 'File re-synced.']);
+        return response()->json(['success' => true, 'message' => 'File re-synced successfully.']);
     }
 
     public function deleteFile(IntegrationFile $file)
     {
         abort_if($file->tenant_id !== app('tenant')->id, 403);
 
-        // Remove knowledge document (chunks cascade)
+        // Delete knowledge document (chunks cascade via FK)
         KnowledgeDocument::where('file_path', 'github::' . $file->id)->delete();
         $file->delete();
 
@@ -183,7 +245,7 @@ class GitHubController extends Controller
             ['name' => 'Project Knowledge', 'is_active' => true]
         );
 
-        // Remove old doc for this file (chunks cascade via FK)
+        // Delete old document for this file (chunks cascade)
         KnowledgeDocument::where('knowledge_base_id', $kb->id)
             ->where('file_path', 'github::' . $file->id)
             ->delete();
