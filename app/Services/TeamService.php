@@ -12,11 +12,8 @@ use App\Models\User;
 
 class TeamService
 {
-    /**
-     * Create (or refresh) an invitation for the given email+tenant.
-     * If a pending invitation already exists for this email, it is expired
-     * first so there is always only one active token per email per tenant.
-     */
+    public function __construct(private NotificationService $notifications) {}
+
     public function createInvitation(
         Tenant $tenant,
         User   $inviter,
@@ -39,48 +36,23 @@ class TeamService
             'expires_at' => now()->addDays(7),
         ]);
 
-        // Create an in-app notification if the invitee already has an account
-        $existingUser = User::where('email', $email)->first();
-        if ($existingUser) {
-            AppNotification::create([
-                'tenant_id'  => $existingUser->tenant_id ?? $tenant->id,
-                'user_id'    => $existingUser->id,
-                'type'       => 'team_invitation',
-                'title'      => 'Team Invitation',
-                'body'       => $inviter->name . ' invited you to join ' . $tenant->name . ' as ' . $role . '.',
-                'action_url' => '/invitation/' . $invitation->token,
-                'data'       => [
-                    'tenant_id'     => $tenant->id,
-                    'tenant_name'   => $tenant->name,
-                    'inviter_name'  => $inviter->name,
-                    'role'          => $role,
-                    'token'         => $invitation->token,
-                ],
-            ]);
-        }
+        // Email invitee + in-app notification if they have an account
+        $this->notifications->invitationSent($invitation);
 
         return $invitation;
     }
 
-    /**
-     * Accept an invitation.
-     *
-     * For new users: provide ['name' => ..., 'password' => ...]
-     * For existing users already logged in: provide []
-     */
     public function acceptInvitation(TeamInvitation $invitation, array $userData): User
     {
         $user = User::where('email', $invitation->email)->first();
 
         if ($user) {
-            // Existing user — move to new tenant, update role
             $user->update([
                 'tenant_id' => $invitation->tenant_id,
                 'role'      => $invitation->role,
                 'is_active' => true,
             ]);
         } else {
-            // New user — register them
             $user = User::create([
                 'name'      => $userData['name'],
                 'email'     => $invitation->email,
@@ -91,42 +63,23 @@ class TeamService
             ]);
         }
 
-        // Mark invitation as accepted
         $invitation->update([
             'status'      => 'accepted',
             'accepted_at' => now(),
         ]);
 
-        // Notify the inviter
-        $inviter = $invitation->inviter;
-        if ($inviter) {
-            AppNotification::create([
-                'tenant_id'  => $invitation->tenant_id,
-                'user_id'    => $inviter->id,
-                'type'       => 'invitation_accepted',
-                'title'      => 'Invitation Accepted',
-                'body'       => $user->name . ' accepted your invitation to join the workspace.',
-                'action_url' => '/team',
-                'data'       => ['user_id' => $user->id, 'user_name' => $user->name],
-            ]);
-        }
+        // Email inviter + in-app notify inviter + all other admins
+        $this->notifications->invitationAccepted($invitation, $user);
 
         return $user;
     }
 
-    /**
-     * Remove a member from a tenant.
-     * Clears their project memberships within that tenant,
-     * then detaches them from the tenant.
-     */
     public function removeMember(User $member, int $tenantId): void
     {
-        // Remove from restricted projects within this tenant
         ProjectMember::where('user_id', $member->id)
             ->where('tenant_id', $tenantId)
             ->delete();
 
-        // Detach from tenant
         $member->update([
             'tenant_id' => null,
             'is_active' => false,

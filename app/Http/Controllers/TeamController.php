@@ -4,6 +4,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppNotification;
 use App\Models\Subscription;
 use App\Models\TeamInvitation;
 use App\Models\User;
@@ -30,14 +31,16 @@ class TeamController extends Controller
     public function index(): Response
     {
         $tenant = app('tenant');
+        $user   = auth()->user();
 
         $members = User::where('tenant_id', $tenant->id)
             ->orderByRaw("FIELD(role,'admin','member')")->orderBy('name')
             ->get(['id', 'name', 'email', 'role', 'is_active', 'created_at'])
             ->map(fn (User $u) => [
-                'id' => $u->id, 'name' => $u->name, 'email' => $u->email,
-                'role' => $u->role, 'is_active' => $u->is_active,
-                'is_self' => $u->id === auth()->id(),
+                'id'        => $u->id,   'name'      => $u->name,
+                'email'     => $u->email,'role'      => $u->role,
+                'is_active' => $u->is_active,
+                'is_self'   => $u->id === $user->id,
                 'joined_at' => $u->created_at?->diffForHumans(),
             ]);
 
@@ -45,20 +48,34 @@ class TeamController extends Controller
             ->whereIn('status', ['pending'])->where('expires_at', '>', now())
             ->with('inviter:id,name')->orderByDesc('created_at')->get()
             ->map(fn (TeamInvitation $inv) => [
-                'id' => $inv->id, 'email' => $inv->email, 'role' => $inv->role,
-                'status' => $inv->status,
+                'id'         => $inv->id,    'email'      => $inv->email,
+                'role'       => $inv->role,  'status'     => $inv->status,
                 'expires_at' => $inv->expires_at->toDateTimeString(),
                 'invite_url' => $inv->invite_url,
-                'inviter' => $inv->inviter?->name,
+                'inviter'    => $inv->inviter?->name,
                 'created_at' => $inv->created_at->diffForHumans(),
             ]);
 
+        $notifications = AppNotification::where('user_id', $user->id)
+            ->whereIn('type', ['team_invitation', 'invitation_accepted'])
+            ->orderByDesc('created_at')->limit(30)->get()
+            ->map(fn (AppNotification $n) => [
+                'id'         => $n->id,
+                'type'       => $n->type,
+                'title'      => $n->title,
+                'body'       => $n->body,
+                'action_url' => $n->action_url,
+                'read_at'    => $n->read_at,
+                'created_at' => $n->created_at->diffForHumans(),
+            ]);
+
         return Inertia::render('Team/Index', [
-            'members'     => $members,
-            'invitations' => $invitations,
-            'canManage'   => auth()->user()->canManageTeam(),
-            'currentUser' => ['id' => auth()->id(), 'role' => auth()->user()->role],
-            'seats'       => $this->seatInfo($tenant),
+            'members'       => $members,
+            'invitations'   => $invitations,
+            'notifications' => $notifications,
+            'canManage'     => $user->canManageTeam(),
+            'currentUser'   => ['id' => $user->id, 'role' => $user->role],
+            'seats'         => $this->seatInfo($tenant),
         ]);
     }
 
@@ -83,7 +100,7 @@ class TeamController extends Controller
 
         $invitation = $this->teamService->createInvitation($tenant, auth()->user(), $validated['email'], $validated['role']);
 
-        return back()->with(['success' => 'Invitation created successfully.', 'invite_url' => $invitation->invite_url]);
+        return back()->with(['success' => 'Invitation sent to ' . $validated['email'] . '.', 'invite_url' => $invitation->invite_url]);
     }
 
     public function resendInvite(TeamInvitation $invitation): RedirectResponse
@@ -132,5 +149,20 @@ class TeamController extends Controller
         $name = $member->name;
         $this->teamService->removeMember($member, app('tenant')->id);
         return back()->with('success', $name . ' has been removed from the workspace.');
+    }
+
+    // POST /team/notifications/read
+    public function markNotificationsRead(Request $request): RedirectResponse
+    {
+        $query = AppNotification::where('user_id', auth()->id())
+            ->whereIn('type', ['team_invitation', 'invitation_accepted'])
+            ->whereNull('read_at');
+
+        if ($request->filled('id')) {
+            $query->where('id', $request->integer('id'));
+        }
+
+        $query->update(['read_at' => now()]);
+        return back();
     }
 }
