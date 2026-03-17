@@ -1,5 +1,4 @@
 <?php
-// FILE: app/Http/Middleware/HandleInertiaRequests.php
 
 namespace App\Http\Middleware;
 
@@ -46,7 +45,6 @@ class HandleInertiaRequests extends Middleware
             ];
         }
 
-        // Sidebar projects with their chats (null-safe for superadmin)
         $sidebarProjects = $tenant
             ? Project::where('tenant_id', $tenant->id)
                 ->with(['chats' => function ($q) {
@@ -59,7 +57,6 @@ class HandleInertiaRequests extends Middleware
                 ->toArray()
             : [];
 
-        // Templates (shared in context for template picker in chat)
         $templates = [];
         if ($user && $tenant) {
             $templates = PromptTemplate::where('tenant_id', $tenant->id)
@@ -72,10 +69,24 @@ class HandleInertiaRequests extends Middleware
                 ->toArray();
         }
 
-        // Ollama available models from config
         $ollamaModels = array_filter(
             config('ollama.available_models', [config('ollama.model')])
         );
+
+        // Active addon slugs for the current tenant
+        $activeAddons = $tenant
+            ? \App\Models\TenantAddon::where('tenant_id', $tenant->id)
+                ->where('status', 'active')
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                })
+                ->with('addon:id,slug')
+                ->get()
+                ->pluck('addon.slug')
+                ->filter()
+                ->values()
+                ->toArray()
+            : [];
 
         return array_merge(parent::share($request), [
             'auth' => [
@@ -86,28 +97,20 @@ class HandleInertiaRequests extends Middleware
                     'role'  => $user->role,
                 ] : null,
             ],
-            'tenant'           => $tenant,
-            'quota'            => $quota,
-            'sidebar_projects' => $sidebarProjects,
-            'templates'        => $templates,
-            'ollama_models'    => array_values($ollamaModels),
-            'has_agent_addon'  => $tenant ? $tenant->hasAddon('agent-ai') : false,
-            'active_addons'    => $tenant ? \App\Models\TenantAddon::where('tenant_id', $tenant->id)
-    ->where('status', 'active')
-    ->where(function ($q) { $q->whereNull('expires_at')->orWhere('expires_at', '>', now()); })
-    ->with('addon:id,slug')
-    ->get()
-    ->pluck('addon.slug')
-    ->filter()
-    ->values()
-    ->toArray() : [],
-            'theme' => \App\Services\ThemeService::get(),
-            'flash' => [
+            'tenant'            => $tenant,
+            'quota'             => $quota,
+            'sidebar_projects'  => $sidebarProjects,
+            'templates'         => $templates,
+            'ollama_models'     => array_values($ollamaModels),
+            'has_agent_addon'   => in_array('agent-ai', $activeAddons),
+            'active_addons'     => $activeAddons,
+            'openclaw_url'      => config('openclaw.url'),
+            'openclaw_model'    => config('openclaw.model'),
+            'theme'             => \App\Services\ThemeService::get(),
+            'flash'             => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),
             ],
         ]);
-
-        
     }
 }

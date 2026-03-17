@@ -10,6 +10,13 @@ use Inertia\Inertia;
 
 class ProjectController extends Controller
 {
+    private function allowedModels(): array
+    {
+        return array_values(array_filter(
+            config('ollama.available_models', [config('ollama.model')])
+        ));
+    }
+
     public function index()
     {
         $tenant   = app('tenant');
@@ -25,8 +32,8 @@ class ProjectController extends Controller
 
     public function store(Request $request)
     {
-        $tenant          = app('tenant');
-        $allowedModels   = config('ollama.available_models', [config('ollama.model')]);
+        $tenant        = app('tenant');
+        $allowedModels = $this->allowedModels();
 
         $validated = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
@@ -58,25 +65,24 @@ class ProjectController extends Controller
         return Inertia::render('Projects/Show', [
             'project'       => $project,
             'chats'         => $project->chats,
-            'ollama_models' => config('ollama.available_models', [config('ollama.model')]),
+            'ollama_models' => $this->allowedModels(),
         ]);
     }
 
     public function update(Request $request, Project $project)
     {
         $tenant        = app('tenant');
-        $allowedModels = config('ollama.available_models', [config('ollama.model')]);
+        $allowedModels = $this->allowedModels();
 
         abort_if($project->tenant_id !== $tenant->id, 403);
 
         $validated = $request->validate([
-            'name'           => ['sometimes', 'required', 'string', 'max:255'],
-            'description'    => ['nullable', 'string', 'max:1000'],
-            'system_prompt'  => ['nullable', 'string', 'max:4000'],
-            'model'          => ['nullable', 'string', 'in:' . implode(',', $allowedModels)],
+            'name'          => ['sometimes', 'required', 'string', 'max:255'],
+            'description'   => ['nullable', 'string', 'max:1000'],
+            'system_prompt' => ['nullable', 'string', 'max:4000'],
+            'model'         => ['nullable', 'string', 'in:' . implode(',', $allowedModels)],
         ]);
 
-        // Only update fields that were actually sent
         $updateData = array_filter([
             'name'          => $validated['name']          ?? null,
             'description'   => $validated['description']   ?? null,
@@ -84,7 +90,6 @@ class ProjectController extends Controller
             'model'         => $validated['model']         ?? null,
         ], fn($v) => $v !== null);
 
-        // Allow explicit null for description and system_prompt
         if (array_key_exists('description', $validated)) {
             $updateData['description'] = $validated['description'];
         }

@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\AddonController as ApiAddonController;
 use App\Http\Controllers\Api\V1\AgentController as ApiAgentController;
 use App\Http\Controllers\Api\V1\IntegrationController;
 use App\Http\Controllers\Api\V1\N8nController as ApiN8nController;
-
+use App\Http\Controllers\Api\V1\OpenClawController as ApiOpenClawController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -57,12 +57,15 @@ Route::prefix('v1')->group(function () {
 
         // ── n8n Automation API (requires n8n-automation addon) ────────────
         Route::prefix('n8n')->group(function () {
-            Route::get   ('settings',        [ApiN8nController::class, 'settings']);
-            Route::put   ('settings',        [ApiN8nController::class, 'update']);
-            Route::get   ('logs',            [ApiN8nController::class, 'logs']);
-            Route::delete('logs',            [ApiN8nController::class, 'clearLogs']);
-            // NOTE: callback uses no auth — verified by HMAC signature in controller
-            // so it is registered outside this group below
+            Route::get   ('settings',  [ApiN8nController::class, 'settings']);
+            Route::put   ('settings',  [ApiN8nController::class, 'update']);
+            Route::get   ('logs',      [ApiN8nController::class, 'logs']);
+            Route::delete('logs',      [ApiN8nController::class, 'clearLogs']);
+        });
+
+        // ── OpenClaw API (requires openclaw addon) ────────────────────────
+        Route::middleware('addon:openclaw')->prefix('openclaw')->group(function () {
+            Route::get('health', [ApiOpenClawController::class, 'health']);
         });
 
         // ── Knowledge Base ────────────────────────────────────────────────
@@ -83,17 +86,13 @@ Route::prefix('v1')->group(function () {
 
         // ── Chats + Messages + File Upload ────────────────────────────────
         Route::prefix('projects/{project}')->group(function () {
-
             Route::apiResource('chats', ChatController::class)->except(['update']);
             Route::post('chats/{chat}/close', [ChatController::class, 'close']);
-
             Route::prefix('chats/{chat}')->group(function () {
                 Route::get('messages',        [MessageController::class, 'index']);
                 Route::post('messages',       [MessageController::class, 'store']);
                 Route::get('messages/status', [MessageController::class, 'status']);
-
-                Route::post('upload', [FileUploadController::class, 'store'])
-                    ->name('api.chats.upload');
+                Route::post('upload', [FileUploadController::class, 'store'])->name('api.chats.upload');
             });
         });
 
@@ -131,11 +130,9 @@ Route::prefix('v1')->group(function () {
 
     }); // end protected group
 
-    // ── n8n inbound callback (NO auth — verified by HMAC signature) ──────
-    // Must be outside auth group because n8n has no Sanctum token.
-    // Tenant is resolved from the chat model inside the controller.
+    // ── n8n inbound callback (NO auth — HMAC verified) ───────────────────
     Route::middleware('throttle:60,1')
-        ->post('v1/n8n/callback/{chat}', [ApiN8nController::class, 'callback'])
+        ->post('n8n/callback/{chat}', [ApiN8nController::class, 'callback'])
         ->name('api.n8n.callback');
 
 }); // end v1 prefix

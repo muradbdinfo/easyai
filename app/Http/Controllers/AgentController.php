@@ -8,19 +8,38 @@ use App\Models\AgentRun;
 use App\Models\Chat;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class AgentController extends Controller
 {
+    public function settings()
+    {
+        $tenant = app('tenant');
+
+        $recentRuns = AgentRun::where('tenant_id', $tenant->id)
+            ->with(['chat:id,title', 'chat.project:id,name'])
+            ->latest()
+            ->take(10)
+            ->get(['id', 'chat_id', 'goal', 'status', 'steps_count', 'tokens_used', 'created_at']);
+
+        return Inertia::render('Agent/Settings', [
+            'recent_runs' => $recentRuns,
+            'stats' => [
+                'total_runs'    => AgentRun::where('tenant_id', $tenant->id)->count(),
+                'completed'     => AgentRun::where('tenant_id', $tenant->id)->where('status', 'completed')->count(),
+                'failed'        => AgentRun::where('tenant_id', $tenant->id)->where('status', 'failed')->count(),
+                'tokens_used'   => AgentRun::where('tenant_id', $tenant->id)->sum('tokens_used'),
+            ],
+        ]);
+    }
+
     public function run(Request $request, Project $project, Chat $chat)
     {
         $tenant = app('tenant');
 
         abort_if($project->tenant_id !== $tenant->id, 403);
         abort_if($chat->tenant_id    !== $tenant->id, 403);
-
-        if ($chat->isClosed()) {
-            return response()->json(['success' => false, 'message' => 'Chat is closed.'], 422);
-        }
+        abort_if($chat->isClosed(), 422, 'Chat is closed.');
 
         $validated = $request->validate([
             'goal'      => ['required', 'string', 'max:2000'],
@@ -38,7 +57,6 @@ class AgentController extends Controller
 
         RunAgentJob::dispatch($agentRun->id, $tenant->id, $request->user()->id);
 
-        // Generate chat title from goal (same as normal chat does from first message)
         if ($chat->title === 'New Chat' || empty($chat->title)) {
             GenerateChatTitleJob::dispatch(
                 $chat->id,
@@ -47,7 +65,6 @@ class AgentController extends Controller
             );
         }
 
-        // Return JSON — AgentPanel.vue uses axios, not Inertia
         return response()->json([
             'success' => true,
             'message' => 'Agent started.',
@@ -63,15 +80,12 @@ class AgentController extends Controller
         $tenant = app('tenant');
 
         abort_if($agentRun->tenant_id !== $tenant->id, 403);
-        abort_if($agentRun->chat_id   !== $chat->id,   403);
+        abort_if($agentRun->chat_id   !== $chat->id, 403);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'run'   => $agentRun->only([
-                    'id', 'status', 'steps_count',
-                    'tokens_used', 'final_answer', 'error_message',
-                ]),
+                'run'   => $agentRun->only(['id', 'status', 'steps_count', 'tokens_used', 'final_answer', 'error_message']),
                 'steps' => $agentRun->steps()->orderBy('step_number')->get(),
             ],
         ]);

@@ -1,5 +1,5 @@
 <?php
-// FILE: database/seeders/SuperAdminSeeder.php
+
 namespace Database\Seeders;
 
 use App\Models\User;
@@ -12,11 +12,12 @@ class SuperAdminSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@murad.bd'],
             [
-                'name'      => 'Super Admin',
-                'password'  => bcrypt('P@ssword'), // ← fixed: was plain text
-                'role'      => 'superadmin',
-                'tenant_id' => null,
-                'is_active' => true,
+                'name'               => 'Super Admin',
+                'password'           => bcrypt('P@ssword'),
+                'role'               => 'superadmin',
+                'tenant_id'          => null,
+                'is_active'          => true,
+                'email_verified_at'  => now(),
             ]
         );
 

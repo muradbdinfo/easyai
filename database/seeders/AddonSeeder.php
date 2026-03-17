@@ -13,7 +13,7 @@ class AddonSeeder extends Seeder
             ['slug' => 'agent-ai'],
             [
                 'name'          => 'Agent AI',
-                'description'   => 'Autonomous AI agent that can search the web, read URLs, and perform multi-step reasoning to complete complex tasks.',
+                'description'   => 'Autonomous AI agent — web search, URL reader, multi-step reasoning.',
                 'price'         => 29.00,
                 'currency'      => 'USD',
                 'billing_cycle' => 'monthly',
@@ -35,23 +35,42 @@ class AddonSeeder extends Seeder
             ['slug' => 'n8n-automation'],
             [
                 'name'          => 'n8n Automation',
-                'description'   => 'Connect EasyAI to your n8n server. Fire webhooks on AI events and receive callbacks back into chats for full workflow automation.',
+                'description'   => 'Connect EasyAI to n8n workflows — fire webhooks on chat events.',
                 'price'         => 19.00,
                 'currency'      => 'USD',
                 'billing_cycle' => 'monthly',
                 'features'      => [
-                    'Fire webhooks on message sent',
-                    'Fire webhooks on AI reply received',
-                    'Fire webhooks on payment completed',
-                    'Fire webhooks on new tenant registered',
-                    'Receive n8n callbacks back into any chat',
-                    'Per-tenant webhook URL configuration',
-                    'Full webhook delivery logs',
-                    'HMAC signature verification',
+                    'Webhook on new chat',
+                    'Webhook on message sent',
+                    'Webhook on assistant replied',
+                    'HMAC signed payloads',
+                    'Full webhook logs',
                 ],
                 'is_active'  => true,
                 'sort_order' => 2,
             ]
         );
+
+        Addon::updateOrCreate(
+            ['slug' => 'openclaw'],
+            [
+                'name'          => 'OpenClaw Agent',
+                'description'   => 'Self-hosted AI agent with MCP tools — web search, file access, shell commands.',
+                'price'         => 0.00,
+                'currency'      => 'USD',
+                'billing_cycle' => 'monthly',
+                'features'      => [
+                    'MCP tool support',
+                    'Web search',
+                    'File access',
+                    'Shell commands',
+                    'OpenAI-compatible API',
+                ],
+                'is_active'  => true,
+                'sort_order' => 3,
+            ]
+        );
+
+        $this->command->info('Addons seeded: agent-ai, n8n-automation, openclaw');
     }
 }

@@ -25,13 +25,14 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\InvitationController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\AddonController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\Admin\AddonController as AdminAddonController;
 use App\Http\Controllers\GitHubController;
 use App\Http\Controllers\N8nController;
+use App\Http\Controllers\OpenClawController;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 
@@ -61,7 +62,7 @@ Route::domain(config('domains.app'))->group(function () {
         Route::post('/reset-password',        [PasswordResetController::class, 'reset'])->name('password.update');
     });
 
-    // ── Invitations (public, no auth required) ─────────────────────────────
+    // ── Invitations (public) ───────────────────────────────────────────────
     Route::get('/invitation/{token}',          [InvitationController::class, 'show'])->name('invitation.show');
     Route::post('/invitation/{token}/accept',  [InvitationController::class, 'accept'])->name('invitation.accept');
     Route::post('/invitation/{token}/decline', [InvitationController::class, 'decline'])->name('invitation.decline');
@@ -84,8 +85,8 @@ Route::domain(config('domains.app'))->group(function () {
             return back()->with('status', 'verification-link-sent');
         })->middleware('throttle:6,1')->name('verification.send');
 
-        // ── Authenticated + Verified ───────────────────────────────────────
-        Route::middleware('verified')->group(function () {
+        // ── Authenticated + Verified (skipped on local env) ───────────────
+        Route::middleware(app()->isLocal() ? [] : ['verified'])->group(function () {
 
             // ── Auth + Tenant ──────────────────────────────────────────────
             Route::middleware('tenant')->group(function () {
@@ -107,6 +108,7 @@ Route::domain(config('domains.app'))->group(function () {
 
                 // ── Agent routes (requires agent-ai addon) ─────────────────
                 Route::middleware('addon:agent-ai')->group(function () {
+                    Route::get('/agent',  [AgentController::class, 'settings'])->name('agent.settings');
                     Route::post('/projects/{project}/chats/{chat}/agent/run',
                         [AgentController::class, 'run'])->name('agent.run');
                     Route::get('/projects/{project}/chats/{chat}/agent/{agentRun}/steps',
@@ -115,17 +117,21 @@ Route::domain(config('domains.app'))->group(function () {
                         [AgentController::class, 'stop'])->name('agent.stop');
                 });
 
-                // ── n8n Automation settings (requires addon) ───────────────
+                // ── n8n Automation (requires addon) ────────────────────────
                 Route::middleware('addon:n8n-automation')->group(function () {
                     Route::get('/n8n/settings',  [N8nController::class, 'settings'])->name('n8n.settings');
                     Route::put('/n8n/settings',  [N8nController::class, 'update'])->name('n8n.settings.update');
                     Route::delete('/n8n/logs',   [N8nController::class, 'clearLogs'])->name('n8n.logs.clear');
                 });
 
-                // Standalone new chat
-                Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
+                // ── OpenClaw Agent (requires addon) ────────────────────────
+                Route::middleware('addon:openclaw')->group(function () {
+                    Route::get('/openclaw',        [OpenClawController::class, 'index'])->name('openclaw.index');
+                    Route::get('/openclaw/health', [OpenClawController::class, 'health'])->name('openclaw.health');
+                });
 
-                // Dashboard
+                // ── Dashboard ──────────────────────────────────────────────
+                Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
                 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
                 // ── Notifications ──────────────────────────────────────────
@@ -164,16 +170,12 @@ Route::domain(config('domains.app'))->group(function () {
                         Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                     });
 
-                    Route::get('/{chat}/stream', [StreamController::class, 'stream'])
-                        ->name('projects.chats.stream');
-
-                    Route::post('/{chat}/upload', [FileUploadController::class, 'store'])
-                        ->name('chats.upload');
+                    Route::get('/{chat}/stream',  [StreamController::class, 'stream'])->name('projects.chats.stream');
+                    Route::post('/{chat}/upload', [FileUploadController::class, 'store'])->name('chats.upload');
                 });
 
-                // Attachment delete
-                Route::delete('/attachments/{attachment}', [FileUploadController::class, 'destroy'])
-                    ->name('attachments.destroy');
+                // ── Attachment delete ──────────────────────────────────────
+                Route::delete('/attachments/{attachment}', [FileUploadController::class, 'destroy'])->name('attachments.destroy');
 
                 // ── Templates ──────────────────────────────────────────────
                 Route::get('/templates',                    [PromptTemplateController::class, 'index'])->name('templates.index');
@@ -191,15 +193,12 @@ Route::domain(config('domains.app'))->group(function () {
                 Route::get('/billing',                     [BillingController::class, 'index'])->name('billing.index');
                 Route::get('/billing/plans',               [BillingController::class, 'plans'])->name('billing.plans');
                 Route::get('/billing/plans/{plan}/select', [BillingController::class, 'selectPlan'])->name('billing.select');
-
                 Route::post('/billing/cod/{plan}',         [BillingController::class, 'processCod'])->name('billing.cod');
-
                 Route::post('/billing/sslcommerz/{plan}',  [BillingController::class, 'processSslcommerz'])->name('billing.sslcommerz');
                 Route::get('/billing/sslcommerz/success',  [BillingController::class, 'sslSuccess'])->name('billing.sslcommerz.success');
                 Route::get('/billing/sslcommerz/fail',     [BillingController::class, 'sslFail'])->name('billing.sslcommerz.fail');
                 Route::get('/billing/sslcommerz/cancel',   [BillingController::class, 'sslCancel'])->name('billing.sslcommerz.cancel');
                 Route::post('/billing/sslcommerz/ipn',     [BillingController::class, 'sslIpn'])->name('billing.sslcommerz.ipn');
-
                 Route::post('/billing/stripe/{plan}',      [BillingController::class, 'processStripe'])->name('billing.stripe');
                 Route::get('/billing/stripe/success',      [BillingController::class, 'stripeSuccess'])->name('billing.stripe.success');
                 Route::get('/billing/invoice/{payment}',   [BillingController::class, 'downloadInvoice'])->name('billing.invoice.download');
@@ -250,27 +249,28 @@ Route::domain(config('domains.app'))
     ->post('/stripe/webhook', [BillingController::class, 'stripeWebhook'])
     ->name('stripe.webhook');
 
-
-// ── n8n inbound callback (no auth, no CSRF — verified by HMAC signature) ──────
-// n8n is an external server with no Sanctum token or session.
-// Security = HMAC SHA-256 signature check inside N8nController::callback()
-// Tenant is resolved from the Chat model inside the controller.
+// ── n8n inbound callback (no auth — HMAC verified) ────────────────────────────
 Route::domain(config('domains.app'))
     ->post('/n8n/callback/{chat}', [N8nController::class, 'callback'])
     ->name('n8n.callback');
 
-// ── Chatbot widget relay (proxies browser → n8n, keeps webhook URL server-side) ─
+// ── Chatbot relay ──────────────────────────────────────────────────────────────
 Route::domain(config('domains.app'))
     ->post('/chatbot/relay', function (\Illuminate\Http\Request $r) {
         $r->validate(['message' => 'required|string|max:1000', 'session_id' => 'required|string']);
-
         try {
             $response = \Illuminate\Support\Facades\Http::timeout(30)
                 ->post(config('services.chatbot.webhook_url'), [
                     'message'    => $r->message,
                     'session_id' => $r->session_id,
+                    'chat_title' => 'New Chat: ' . \Illuminate\Support\Str::limit($r->message, 50),
+                    'user'       => auth()->check() ? auth()->user()->name : 'Guest',
+                    'user_email' => auth()->check() ? auth()->user()->email : 'guest@unknown',
+                    'project'    => config('app.name'),
+                    'tenant'     => $r->getHost(),
+                    'created_at' => now()->format('Y-m-d H:i:s'),
+                    'chat_url'   => url('/chatbot?session=' . $r->session_id),
                 ]);
-
             return response()->json($response->json());
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Chatbot relay error: ' . $e->getMessage());
@@ -286,17 +286,14 @@ Route::domain(config('domains.app'))
 */
 Route::domain(config('domains.admin'))->group(function () {
 
-    // ── Guest ──────────────────────────────────────────────────────────────
     Route::middleware('guest')->group(function () {
         Route::get('/login',  [AuthController::class, 'showLogin'])->name('admin.login');
         Route::post('/login', [AuthController::class, 'login']);
     });
 
-    // ── Auth + Superadmin ──────────────────────────────────────────────────
     Route::middleware(['auth', 'superadmin'])->group(function () {
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
-
         Route::get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
 
         // ── Tenants ────────────────────────────────────────────────────────

@@ -127,7 +127,18 @@ const hoverLeave = (e, path) => { if (!isActive(path)) { e.currentTarget.style.b
                     <Plug class="w-4 h-4 shrink-0"/> Integrations
                 </Link>
 
-                <!-- n8n Automation — only shown if addon is active -->
+                <!-- Agent AI — only if addon active -->
+                <Link v-if="hasAddon('agent-ai')"
+                      :href="route('agent.settings')"
+                      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                      :style="navStyle('/agent')"
+                      @mouseenter="e => hoverEnter(e, '/agent')"
+                      @mouseleave="e => hoverLeave(e, '/agent')"
+                      @click="sidebarOpen = false">
+                    <Zap class="w-4 h-4 shrink-0 text-yellow-400"/> Agent AI
+                </Link>
+
+                <!-- n8n Automation — only if addon active -->
                 <Link v-if="hasAddon('n8n-automation')"
                       :href="route('n8n.settings')"
                       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
@@ -136,6 +147,17 @@ const hoverLeave = (e, path) => { if (!isActive(path)) { e.currentTarget.style.b
                       @mouseleave="e => hoverLeave(e, '/n8n')"
                       @click="sidebarOpen = false">
                     <Zap class="w-4 h-4 shrink-0 text-orange-400"/> n8n Automation
+                </Link>
+
+                <!-- OpenClaw Agent — only if addon active -->
+                <Link v-if="hasAddon('openclaw')"
+                      :href="route('openclaw.index')"
+                      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                      :style="navStyle('/openclaw')"
+                      @mouseenter="e => hoverEnter(e, '/openclaw')"
+                      @mouseleave="e => hoverLeave(e, '/openclaw')"
+                      @click="sidebarOpen = false">
+                    <Bot class="w-4 h-4 shrink-0 text-indigo-400"/> OpenClaw Agent
                 </Link>
 
             </nav>

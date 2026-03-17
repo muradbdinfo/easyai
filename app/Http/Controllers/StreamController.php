@@ -32,13 +32,9 @@ class StreamController extends Controller
         abort_if($chat->tenant_id    !== $tenant->id, 403);
         abort_if($chat->project_id   !== $project->id, 404);
 
-        // ── 1) Build base context (system prompt + memory + last 20 msgs) ──
         $messages = $memory->buildContext($chat, $project);
-
-        // ── 2) Inject attachment from the last user message ────────────────
         $messages = $this->injectAttachment($chat, $messages, $project->model ?? config('ollama.model'));
 
-        // Freeze values for use inside the closure
         $ollamaUrl    = rtrim(config('ollama.url'), '/');
         $projectModel = $project->model ?? config('ollama.model');
         $chatId       = $chat->id;
@@ -47,12 +43,10 @@ class StreamController extends Controller
 
         return response()->stream(function () use (
             $chatId, $tenantId, $userId, $projectModel,
-            $messages, $ollamaUrl, $quota, $counter, $tenant, $chat
+            $messages, $ollamaUrl,
+            $quota, $counter, $tenant, $chat
         ) {
-            // Disable all output buffering (critical for XAMPP / Windows Apache)
-            while (ob_get_level() > 0) {
-                ob_end_clean();
-            }
+            while (ob_get_level() > 0) ob_end_clean();
             @ini_set('zlib.output_compression', 'Off');
             @ini_set('output_buffering', 'Off');
             set_time_limit(0);
@@ -62,28 +56,29 @@ class StreamController extends Controller
             $completionTokens = 0;
             $hasError         = false;
 
-            // Keepalive so browser doesn't time out before first token
             echo ": keepalive\n\n";
             flush();
 
-            // ── Stream from Ollama via cURL ────────────────────────────────
+            // ── Build cURL request ─────────────────────────────────────────
             $ch = curl_init("{$ollamaUrl}/api/chat");
-            curl_setopt($ch, CURLOPT_POST,           true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS,     json_encode([
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                 'model'    => $projectModel,
                 'messages' => $messages,
                 'stream'   => true,
             ]));
-            curl_setopt($ch, CURLOPT_HTTPHEADER,     ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+            curl_setopt($ch, CURLOPT_POST,           true);
             curl_setopt($ch, CURLOPT_TIMEOUT,        120);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+
             curl_setopt($ch, CURLOPT_WRITEFUNCTION,
                 function ($ch, $data) use (&$fullContent, &$promptTokens, &$completionTokens) {
                     foreach (explode("\n", $data) as $line) {
                         $line = trim($line);
                         if ($line === '') continue;
 
-                        $json = json_decode($line, true);
+                        $json   = json_decode($line, true);
                         if (!$json) continue;
 
                         $isDone = $json['done'] ?? false;
@@ -108,7 +103,6 @@ class StreamController extends Controller
             $curlError = curl_error($ch);
             curl_close($ch);
 
-            // ── Fallback on Ollama error ───────────────────────────────────
             if ($curlError || empty(trim($fullContent))) {
                 $hasError    = true;
                 $fullContent = 'Sorry, I could not connect to the AI engine. Please try again.';
@@ -116,7 +110,6 @@ class StreamController extends Controller
                 flush();
             }
 
-            // ── Save assistant message ─────────────────────────────────────
             $assistantMsg = Message::create([
                 'chat_id'   => $chatId,
                 'tenant_id' => $tenantId,
@@ -126,20 +119,17 @@ class StreamController extends Controller
                 'model'     => $projectModel,
             ]);
 
+            try {
+                (new \App\Services\N8nService())->fire($tenant, 'assistant_replied', [
+                    'chat_id'    => $chatId,
+                    'chat_title' => $chat->title,
+                    'project'    => $chat->project->name ?? '',
+                    'content'    => mb_substr($fullContent, 0, 500),
+                    'tokens'     => $completionTokens,
+                    'model'      => $projectModel,
+                ]);
+            } catch (\Throwable) {}
 
-            // ── n8n: fire assistant.replied event ─────────────────────────
-try {
-    (new \App\Services\N8nService())->fire($tenant, 'assistant_replied', [
-        'chat_id'    => $chatId,
-        'chat_title' => $chat->title,
-        'project'    => $project->name,
-        'content'    => mb_substr($fullContent, 0, 500),
-        'tokens'     => $completionTokens,
-        'model'      => $projectModel,
-    ]);
-} catch (\Throwable) {}
-
-            // ── Token accounting (skip when Ollama failed) ─────────────────
             if (!$hasError) {
                 $totalTokens = $promptTokens + $completionTokens;
                 if ($totalTokens === 0) {
@@ -162,32 +152,26 @@ try {
                     'created_at'        => now(),
                 ]);
 
-                // Close chat if quota now exceeded
                 $tenant->refresh();
                 if ($quota->isExceeded($tenant)) {
-                    $chat->update([
-                        'status'        => 'closed',
-                        'closed_reason' => 'Token quota exceeded.',
-                    ]);
+                    $chat->update(['status' => 'closed', 'closed_reason' => 'Token quota exceeded.']);
                 }
 
-                // Summarize every 20 messages
                 $msgCount = Message::where('chat_id', $chatId)->count();
                 if ($msgCount >= 20 && $msgCount % 20 === 0) {
                     SummarizeChatJob::dispatch($chatId);
                 }
             }
 
-            // ── Final done event ───────────────────────────────────────────
             $freshChat = $chat->fresh();
 
-echo 'data: ' . json_encode([
-    'done'         => true,
-    'message_id'   => $assistantMsg->id,
-    'chat_status'  => $freshChat->status,
-    'total_tokens' => $freshChat->total_tokens,
-    'chat_title'   => $freshChat->title,
-]) . "\n\n";
+            echo 'data: ' . json_encode([
+                'done'         => true,
+                'message_id'   => $assistantMsg->id,
+                'chat_status'  => $freshChat->status,
+                'total_tokens' => $freshChat->total_tokens,
+                'chat_title'   => $freshChat->title,
+            ]) . "\n\n";
 
             flush();
 
@@ -199,22 +183,8 @@ echo 'data: ' . json_encode([
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Inject attachment from the most recent user message into messages array
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Find the last user message in this chat that has an attachment,
-     * then inject its content into the Ollama messages array.
-     *
-     * For text/pdf/excel: insert a system message with extracted text
-     *   BEFORE the last user message so Ollama reads it first.
-     * For image + llava: add base64 'images' key to the user message.
-     * For image + non-llava: prepend a text description to user message.
-     */
     private function injectAttachment(Chat $chat, array $messages, string $model): array
     {
-        // Find the last user message in this chat that carries an attachment
         $lastMsgWithAttachment = Message::where('chat_id', $chat->id)
             ->where('role', 'user')
             ->where('has_attachment', true)
@@ -223,64 +193,44 @@ echo 'data: ' . json_encode([
             ->first();
 
         if (!$lastMsgWithAttachment || !$lastMsgWithAttachment->attachment) {
-            return $messages; // nothing to inject
+            return $messages;
         }
 
-        $attachment = $lastMsgWithAttachment->attachment;
-
-        // Find the index of the last user message in the $messages array
+        $attachment    = $lastMsgWithAttachment->attachment;
         $lastUserIndex = null;
+
         foreach ($messages as $i => $msg) {
-            if ($msg['role'] === 'user') {
-                $lastUserIndex = $i;
-            }
+            if ($msg['role'] === 'user') $lastUserIndex = $i;
         }
 
-        if ($lastUserIndex === null) {
-            return $messages; // safety: no user message found in array
-        }
+        if ($lastUserIndex === null) return $messages;
 
         $userContent = $messages[$lastUserIndex]['content'] ?? '';
 
-        // ── IMAGE ──────────────────────────────────────────────────────────
         if ($attachment->isImage()) {
             if (str_contains(strtolower($model), 'llava') || str_contains(strtolower($model), 'vision')) {
-                // llava / vision models: pass base64 image directly
                 try {
                     $imageBytes = Storage::disk('public')->get($attachment->path);
                     $messages[$lastUserIndex]['images'] = [base64_encode($imageBytes)];
                 } catch (\Throwable) {
-                    // fallback to text description
                     $messages[$lastUserIndex]['content'] =
-                        "[Image attached: {$attachment->original_name}. "
-                        . "Describe or analyze it if you can.]\n\n"
-                        . $userContent;
+                        "[Image attached: {$attachment->original_name}. Describe or analyze it if you can.]\n\n" . $userContent;
                 }
             } else {
-                // Text-only model: prepend a description note
                 $messages[$lastUserIndex]['content'] =
-                    "[Image attached: {$attachment->original_name} "
-                    . "({$attachment->extension}, "
-                    . ($attachment->meta['width'] ?? '?')
-                    . 'x'
-                    . ($attachment->meta['height'] ?? '?')
-                    . "px). I cannot view images directly, but please help me with: ]\n\n"
-                    . $userContent;
+                    "[Image attached: {$attachment->original_name} ({$attachment->extension}, "
+                    . ($attachment->meta['width'] ?? '?') . 'x' . ($attachment->meta['height'] ?? '?')
+                    . "px). I cannot view images directly, but please help me with: ]\n\n" . $userContent;
             }
-
             return $messages;
         }
 
-        // ── TEXT / PDF / EXCEL ─────────────────────────────────────────────
-        $extractedText = $attachment->extracted_text
-            ?? '[Could not extract file content]';
-
-        $typeLabel = match ($attachment->type) {
+        $extractedText = $attachment->extracted_text ?? '[Could not extract file content]';
+        $typeLabel     = match ($attachment->type) {
             'pdf'   => 'PDF Document',
             'excel' => 'Excel Spreadsheet',
             default => 'Text File',
         };
-
         $metaNote = '';
         if ($attachment->type === 'pdf' && isset($attachment->meta['page_count'])) {
             $metaNote = " ({$attachment->meta['page_count']} pages)";
@@ -290,14 +240,9 @@ echo 'data: ' . json_encode([
         }
 
         $fileContext = "=== Attached {$typeLabel}: {$attachment->original_name}{$metaNote} ===\n"
-                    . $extractedText
-                    . "\n=== End of Attached File ===";
+                    . $extractedText . "\n=== End of Attached File ===";
 
-        // Insert a system message with the file content BEFORE the last user message
-        array_splice($messages, $lastUserIndex, 0, [[
-            'role'    => 'system',
-            'content' => $fileContext,
-        ]]);
+        array_splice($messages, $lastUserIndex, 0, [['role' => 'system', 'content' => $fileContext]]);
 
         return $messages;
     }

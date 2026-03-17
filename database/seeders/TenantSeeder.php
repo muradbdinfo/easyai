@@ -27,33 +27,39 @@ class TenantSeeder extends Seeder
             ]
         );
 
-        $adminA = User::updateOrCreate(
+        User::updateOrCreate(
             ['email' => 'admin@tenant-a.local'],
             [
-                'name'      => 'Admin A',
-                'password'  => bcrypt('password'),
-                'role'      => 'admin',
-                'tenant_id' => $tenantA->id,
+                'name'              => 'Admin A',
+                'password'          => bcrypt('password'),
+                'role'              => 'admin',
+                'tenant_id'         => $tenantA->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member1@tenant-a.local'],
             [
-                'name'      => 'Member A1',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantA->id,
+                'name'              => 'Member A1',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantA->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member2@tenant-a.local'],
             [
-                'name'      => 'Member A2',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantA->id,
+                'name'              => 'Member A2',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantA->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -72,30 +78,36 @@ class TenantSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@tenant-b.local'],
             [
-                'name'      => 'Admin B',
-                'password'  => bcrypt('password'),
-                'role'      => 'admin',
-                'tenant_id' => $tenantB->id,
+                'name'              => 'Admin B',
+                'password'          => bcrypt('password'),
+                'role'              => 'admin',
+                'tenant_id'         => $tenantB->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member1@tenant-b.local'],
             [
-                'name'      => 'Member B1',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantB->id,
+                'name'              => 'Member B1',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantB->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member2@tenant-b.local'],
             [
-                'name'      => 'Member B2',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantB->id,
+                'name'              => 'Member B2',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantB->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -114,36 +126,42 @@ class TenantSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@tenant-c.local'],
             [
-                'name'      => 'Admin C',
-                'password'  => bcrypt('password'),
-                'role'      => 'admin',
-                'tenant_id' => $tenantC->id,
+                'name'              => 'Admin C',
+                'password'          => bcrypt('password'),
+                'role'              => 'admin',
+                'tenant_id'         => $tenantC->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member1@tenant-c.local'],
             [
-                'name'      => 'Member C1',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantC->id,
+                'name'              => 'Member C1',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantC->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         User::updateOrCreate(
             ['email' => 'member2@tenant-c.local'],
             [
-                'name'      => 'Member C2',
-                'password'  => bcrypt('password'),
-                'role'      => 'member',
-                'tenant_id' => $tenantC->id,
+                'name'              => 'Member C2',
+                'password'          => bcrypt('password'),
+                'role'              => 'member',
+                'tenant_id'         => $tenantC->id,
+                'is_active'         => true,
+                'email_verified_at' => now(),
             ]
         );
 
         $this->command->info('Tenants seeded:');
-        $this->command->info('  TenantA (Starter/active): admin@tenant-a.local / password');
-        $this->command->info('  TenantB (Pro/active):     admin@tenant-b.local / password');
-        $this->command->info('  TenantC (Enterprise/suspended): admin@tenant-c.local / password');
+        $this->command->info('  TenantA (Starter/active):          admin@tenant-a.local / password');
+        $this->command->info('  TenantB (Pro/active):              admin@tenant-b.local / password');
+        $this->command->info('  TenantC (Enterprise/suspended):    admin@tenant-c.local / password');
     }
 }
