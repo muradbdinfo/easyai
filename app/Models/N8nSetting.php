@@ -13,6 +13,7 @@ class N8nSetting extends Model
         'tenant_id',
         'webhook_url',
         'callback_secret',
+        'event_new_chat',
         'event_message_sent',
         'event_assistant_replied',
         'event_payment_completed',
@@ -21,6 +22,7 @@ class N8nSetting extends Model
     ];
 
     protected $casts = [
+        'event_new_chat'          => 'boolean',
         'event_message_sent'      => 'boolean',
         'event_assistant_replied' => 'boolean',
         'event_payment_completed' => 'boolean',

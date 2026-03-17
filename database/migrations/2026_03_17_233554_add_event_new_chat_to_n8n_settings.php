@@ -1,0 +1,17 @@
+<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void {
+        Schema::table('n8n_settings', function (Blueprint $table) {
+            $table->boolean('event_new_chat')->default(true)->after('event_message_sent');
+        });
+    }
+    public function down(): void {
+        Schema::table('n8n_settings', function (Blueprint $table) {
+            $table->dropColumn('event_new_chat');
+        });
+    }
+};

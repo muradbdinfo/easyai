@@ -25,6 +25,7 @@ const form = useForm({
     event_message_sent:      props.settings.event_message_sent      ?? true,
     event_assistant_replied: props.settings.event_assistant_replied ?? true,
     event_payment_completed: props.settings.event_payment_completed ?? false,
+    event_new_chat:          props.settings.event_new_chat          ?? true,
     event_tenant_registered: props.settings.event_tenant_registered ?? false,
     is_enabled:              props.settings.is_enabled              ?? true,
 })
@@ -137,6 +138,7 @@ function logStatusIcon(log) {
                     <label class="text-sm text-slate-300 font-medium">Events to fire</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label v-for="evt in [
+                            { key: 'event_new_chat',          label: 'New chat created',      desc: 'Fires when a chat is started' },
                             { key: 'event_message_sent',      label: 'Message sent by user',  desc: 'Fires when user sends a message' },
                             { key: 'event_assistant_replied', label: 'Assistant replied',      desc: 'Fires after AI response saved' },
                             { key: 'event_payment_completed', label: 'Payment completed',      desc: 'Fires when plan activated' },

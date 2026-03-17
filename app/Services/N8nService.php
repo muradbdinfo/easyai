@@ -158,7 +158,8 @@ class N8nService
             [
                 'webhook_url'             => null,
                 'callback_secret'         => null,
-                'event_message_sent'      => true,
+                'event_new_chat'          => true,
+            'event_message_sent'      => true,
                 'event_assistant_replied' => true,
                 'event_payment_completed' => false,
                 'event_tenant_registered' => false,

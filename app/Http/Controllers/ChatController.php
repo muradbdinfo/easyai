@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Chat;
 use App\Models\Project;
+use App\Services\N8nService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -27,6 +28,7 @@ public function createQuick(Request $request)
         'status'     => 'open',
     ]);
 
+    app(N8nService::class)->fire($tenant, 'new_chat', ['chat_id' => $chat->id, 'title' => $chat->title, 'project_id' => $chat->project_id]);
     return redirect()->route('projects.chats.show', [$project->id, $chat->id]);
 }
 
@@ -45,6 +47,7 @@ public function createQuick(Request $request)
             'status'     => 'open',
         ]);
 
+        app(N8nService::class)->fire($tenant, 'new_chat', ['chat_id' => $chat->id, 'title' => $chat->title, 'project_id' => $chat->project_id]);
         return redirect()->route('projects.chats.show', [$project->id, $chat->id]);
     }
 

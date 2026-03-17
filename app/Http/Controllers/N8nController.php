@@ -29,6 +29,7 @@ public function settings()
         'settings' => [
             'webhook_url'             => $settings->webhook_url ?? config('services.n8n.webhook_url'),
             'callback_secret'         => $settings->callback_secret ?? config('services.n8n.callback_secret'),
+            'event_new_chat'          => $settings->event_new_chat,
             'event_message_sent'      => $settings->event_message_sent,
             'event_assistant_replied' => $settings->event_assistant_replied,
             'event_payment_completed' => $settings->event_payment_completed,
@@ -48,6 +49,7 @@ public function settings()
         $validated = $request->validate([
             'webhook_url'             => ['nullable', 'url', 'max:500'],
             'callback_secret'         => ['nullable', 'string', 'max:128'],
+            'event_new_chat'          => ['boolean'],
             'event_message_sent'      => ['boolean'],
             'event_assistant_replied' => ['boolean'],
             'event_payment_completed' => ['boolean'],

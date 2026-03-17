@@ -1,0 +1,133 @@
+{
+  "name": "easyai-chat",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "easyai-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-272, -192],
+      "id": "44cf4e5b-7f8b-4bca-81c3-457d16e2ced5",
+      "name": "Webhook",
+      "webhookId": "60954b86-5214-4e4a-885b-eb71f8a7623f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.18.0.1:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen2:1.5b\",\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $('Webhook').item.json.body.message }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-80, -96],
+      "id": "facfc1f8-ad4a-405b-a30a-33b6a17aa6a1",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cdba1972-ccf6-432f-a86b-51c3e0e3cc38",
+              "name": "reply",
+              "value": "={{ $json.message.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [144, 16],
+      "id": "0c8c9861-2334-4071-b8b1-0a57379fe075",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [400, 128],
+      "id": "80419eef-518c-419b-b23e-c2cc59447003",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "fromEmail": "ecomercepos@murad.bd",
+        "toEmail": "murad@murad.bd",
+        "subject": "={\"New Chat: \" + $items(\"Webhook\")[0].json.body.chat_title}",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #4f46e5; padding: 20px; border-radius: 8px 8px 0 0;\">\n    <h2 style=\"color: white; margin: 0;\">💬 New Chat Started</h2>\n  </div>\n  <div style=\"background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb;\">\n    <table style=\"width: 100%; border-collapse: collapse;\">\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280; width: 120px;\">Chat Title</td>\n        <td style=\"padding: 8px 0; font-weight: bold;\">{{ $items(\"Webhook\")[0].json.body.chat_title }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">User</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Webhook\")[0].json.body.user }} ({{ $items(\"Webhook\")[0].json.body.user_email }})</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">Message</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Webhook\")[0].json.body.message }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">AI Reply</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Edit Fields\")[0].json.reply }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">Project</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Webhook\")[0].json.body.project }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">Tenant</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Webhook\")[0].json.body.tenant }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; color: #6b7280;\">Time</td>\n        <td style=\"padding: 8px 0;\">{{ $items(\"Webhook\")[0].json.body.created_at }}</td>\n      </tr>\n    </table>\n    <div style=\"margin-top: 20px;\">\n      <a href='{{ $items(\"Webhook\")[0].json.body.chat_url }}'\n         style=\"background: #4f46e5; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;\">\n        View Chat →\n      </a>\n    </div>\n  </div>\n  <div style=\"padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;\">\n    EasyAI Platform — Automated Notification\n  </div>\n</div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [672, 176],
+      "id": "05c08e8d-fb9e-4443-8eee-5c869d7d49a8",
+      "name": "Send an Email",
+      "credentials": {
+        "smtp": {
+          "id": "jGLtj9cyaVOaSuNp",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "ai.murad.bd:5678",
+            "content-type": "application/json"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "message": "Hello How are you",
+            "session_id": "a59387cf-23ea-4fdb-bb98-2fc9b3e67336",
+            "chat_title": "New Chat: Hello How are you",
+            "user": "Murad",
+            "user_email": "murad@murad.bd",
+            "project": "AIApp",
+            "tenant": "ai.murad.bd",
+            "created_at": "2026-03-17 10:00:00",
+            "chat_url": "https://ai.murad.bd/chatbot?session=a59387cf-23ea-4fdb-bb98-2fc9b3e67336"
+          },
+          "webhookUrl": "http://ai.murad.bd:5678/webhook/easyai-chat",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "HTTP Request", "type": "main", "index": 0}]]
+    },
+    "HTTP Request": {
+      "main": [[{"node": "Edit Fields", "type": "main", "index": 0}]]
+    },
+    "Edit Fields": {
+      "main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]
+    },
+    "Respond to Webhook": {
+      "main": [[{"node": "Send an Email", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "id": "SWjz6aLIayqARC62",
+  "tags": []
+}
