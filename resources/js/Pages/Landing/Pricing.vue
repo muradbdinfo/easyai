@@ -11,7 +11,7 @@ defineProps({
 </script>
 
 <template>
-    <LandingLayout :settings="settings">
+   <LandingLayout :settings="settings" :chatbot-webhook="settings.chatbot_webhook">
 
         <!-- Hero -->
         <section class="pt-24 pb-14 px-5 text-center">

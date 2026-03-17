@@ -29,6 +29,7 @@ class LandingController extends Controller
             'footer_text'      => Setting::get('landing_footer_text', 'EasyAI — Self-Hosted AI Workspace'),
             'features'         => json_decode(Setting::get('landing_features', '[]'), true) ?: $this->defaultFeatures(),
             'faq'              => json_decode(Setting::get('landing_faq', '[]'), true) ?: $this->defaultFaq(),
+            'chatbot_webhook' => config('services.chatbot.webhook_url', ''),
         ];
     }
 

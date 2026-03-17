@@ -37,4 +37,13 @@ return [
     'redirect'      => env('GITHUB_REDIRECT_URI'),
 ],
 
+'n8n' => [
+    'webhook_url'     => env('N8N_WEBHOOK_URL', ''),
+    'callback_secret' => env('N8N_CALLBACK_SECRET', ''),
+],
+
+'chatbot' => [
+    'webhook_url' => env('CHATBOT_WEBHOOK_URL', ''),
+],
+
 ];

@@ -31,6 +31,7 @@ use App\Http\Controllers\AddonController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\Admin\AddonController as AdminAddonController;
 use App\Http\Controllers\GitHubController;
+use App\Http\Controllers\N8nController;
 use Inertia\Inertia;
 
 
@@ -65,12 +66,11 @@ Route::domain(config('domains.app'))->group(function () {
     Route::post('/invitation/{token}/accept',  [InvitationController::class, 'accept'])->name('invitation.accept');
     Route::post('/invitation/{token}/decline', [InvitationController::class, 'decline'])->name('invitation.decline');
 
-    // ── Authenticated (auth only — no verified requirement yet) ───────────
+    // ── Authenticated ──────────────────────────────────────────────────────
     Route::middleware('auth')->group(function () {
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-        // ── Email Verification (auth only, NOT verified — avoids redirect loop) ──
         Route::get('/email/verify', fn() => Inertia::render('Auth/VerifyEmail'))
             ->name('verification.notice');
 
@@ -90,23 +90,20 @@ Route::domain(config('domains.app'))->group(function () {
             // ── Auth + Tenant ──────────────────────────────────────────────
             Route::middleware('tenant')->group(function () {
 
+                // ── GitHub Integration ─────────────────────────────────────
+                Route::get('/github/redirect',           [GitHubController::class, 'redirect'])->name('github.redirect');
+                Route::get('/github/callback',           [GitHubController::class, 'callback'])->name('github.callback');
+                Route::post('/github/disconnect',        [GitHubController::class, 'disconnect'])->name('github.disconnect');
+                Route::get('/github/repos',              [GitHubController::class, 'repos'])->name('github.repos');
+                Route::get('/github/contents',           [GitHubController::class, 'contents'])->name('github.contents');
+                Route::post('/github/import',            [GitHubController::class, 'import'])->name('github.import');
+                Route::delete('/github/files/{file}',    [GitHubController::class, 'deleteFile'])->name('github.file.delete');
+                Route::post('/github/files/{file}/sync', [GitHubController::class, 'syncFile'])->name('github.file.sync');
 
-
-            // GitHub Integration
-Route::get('/github/redirect',              [GitHubController::class, 'redirect'])->name('github.redirect');
-Route::get('/github/callback',              [GitHubController::class, 'callback'])->name('github.callback');
-Route::post('/github/disconnect',           [GitHubController::class, 'disconnect'])->name('github.disconnect');
-Route::get('/github/repos',                 [GitHubController::class, 'repos'])->name('github.repos');
-Route::get('/github/contents',              [GitHubController::class, 'contents'])->name('github.contents');
-Route::post('/github/import',               [GitHubController::class, 'import'])->name('github.import');
-Route::delete('/github/files/{file}',       [GitHubController::class, 'deleteFile'])->name('github.file.delete');
-Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'])->name('github.file.sync');
-
-
-                // ── Add-on store (all tenants can view & purchase) ─────────
-                Route::get('/addons',                    [AddonController::class, 'index'])->name('addons.index');
-                Route::post('/addons/{addon}/purchase',  [AddonController::class, 'purchase'])->name('addons.purchase');
-                Route::delete('/addons/{addon}/cancel',  [AddonController::class, 'cancel'])->name('addons.cancel');
+                // ── Add-on store ───────────────────────────────────────────
+                Route::get('/addons',                   [AddonController::class, 'index'])->name('addons.index');
+                Route::post('/addons/{addon}/purchase', [AddonController::class, 'purchase'])->name('addons.purchase');
+                Route::delete('/addons/{addon}/cancel', [AddonController::class, 'cancel'])->name('addons.cancel');
 
                 // ── Agent routes (requires agent-ai addon) ─────────────────
                 Route::middleware('addon:agent-ai')->group(function () {
@@ -118,7 +115,14 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
                         [AgentController::class, 'stop'])->name('agent.stop');
                 });
 
-                // Standalone new chat (uses General project)
+                // ── n8n Automation settings (requires addon) ───────────────
+                Route::middleware('addon:n8n-automation')->group(function () {
+                    Route::get('/n8n/settings',  [N8nController::class, 'settings'])->name('n8n.settings');
+                    Route::put('/n8n/settings',  [N8nController::class, 'update'])->name('n8n.settings.update');
+                    Route::delete('/n8n/logs',   [N8nController::class, 'clearLogs'])->name('n8n.logs.clear');
+                });
+
+                // Standalone new chat
                 Route::get('/chat/new', [ChatController::class, 'createQuick'])->name('chat.new');
 
                 // Dashboard
@@ -146,31 +150,23 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
 
                 // ── Projects ───────────────────────────────────────────────
                 Route::resource('projects', ProjectController::class);
+                Route::delete('/projects/{project}/memory', [ProjectController::class, 'clearMemory'])->name('projects.memory.clear');
+                Route::patch('/projects/{project}/memory',  [ProjectController::class, 'updateMemory'])->name('projects.memory.update');
 
-                Route::delete('/projects/{project}/memory',
-                    [ProjectController::class, 'clearMemory'])->name('projects.memory.clear');
-
-                Route::patch('/projects/{project}/memory',
-                    [ProjectController::class, 'updateMemory'])->name('projects.memory.update');
-
-                // ── Chats (nested under project) ───────────────────────────
+                // ── Chats ──────────────────────────────────────────────────
                 Route::prefix('/projects/{project}/chats')->group(function () {
-
                     Route::post('/',         [ChatController::class, 'store'])->name('projects.chats.store');
                     Route::get('/{chat}',    [ChatController::class, 'show'])->name('projects.chats.show');
                     Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('projects.chats.destroy');
 
-                    // Messages
                     Route::prefix('/{chat}/messages')->group(function () {
                         Route::post('/', [MessageController::class, 'store'])->name('projects.chats.messages.store');
                         Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
                     });
 
-                    // SSE Streaming
                     Route::get('/{chat}/stream', [StreamController::class, 'stream'])
                         ->name('projects.chats.stream');
 
-                    // File upload
                     Route::post('/{chat}/upload', [FileUploadController::class, 'store'])
                         ->name('chats.upload');
                 });
@@ -180,9 +176,9 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
                     ->name('attachments.destroy');
 
                 // ── Templates ──────────────────────────────────────────────
-                Route::get('/templates',                   [PromptTemplateController::class, 'index'])->name('templates.index');
-                Route::post('/templates',                  [PromptTemplateController::class, 'store'])->name('templates.store');
-                Route::put('/templates/{promptTemplate}',  [PromptTemplateController::class, 'update'])->name('templates.update');
+                Route::get('/templates',                    [PromptTemplateController::class, 'index'])->name('templates.index');
+                Route::post('/templates',                   [PromptTemplateController::class, 'store'])->name('templates.store');
+                Route::put('/templates/{promptTemplate}',   [PromptTemplateController::class, 'update'])->name('templates.update');
                 Route::delete('/templates/{promptTemplate}',[PromptTemplateController::class, 'destroy'])->name('templates.destroy');
 
                 // ── Export ─────────────────────────────────────────────────
@@ -192,22 +188,21 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
                     [ExportController::class, 'exportMarkdown'])->name('chats.export.markdown');
 
                 // ── Billing ────────────────────────────────────────────────
-                Route::get('/billing',                       [BillingController::class, 'index'])->name('billing.index');
-                Route::get('/billing/plans',                 [BillingController::class, 'plans'])->name('billing.plans');
-                Route::get('/billing/plans/{plan}/select',   [BillingController::class, 'selectPlan'])->name('billing.select');
+                Route::get('/billing',                     [BillingController::class, 'index'])->name('billing.index');
+                Route::get('/billing/plans',               [BillingController::class, 'plans'])->name('billing.plans');
+                Route::get('/billing/plans/{plan}/select', [BillingController::class, 'selectPlan'])->name('billing.select');
 
-                Route::post('/billing/cod/{plan}',           [BillingController::class, 'processCod'])->name('billing.cod');
+                Route::post('/billing/cod/{plan}',         [BillingController::class, 'processCod'])->name('billing.cod');
 
-                Route::post('/billing/sslcommerz/{plan}',    [BillingController::class, 'processSslcommerz'])->name('billing.sslcommerz');
-                Route::get('/billing/sslcommerz/success',    [BillingController::class, 'sslSuccess'])->name('billing.sslcommerz.success');
-                Route::get('/billing/sslcommerz/fail',       [BillingController::class, 'sslFail'])->name('billing.sslcommerz.fail');
-                Route::get('/billing/sslcommerz/cancel',     [BillingController::class, 'sslCancel'])->name('billing.sslcommerz.cancel');
-                Route::post('/billing/sslcommerz/ipn',       [BillingController::class, 'sslIpn'])->name('billing.sslcommerz.ipn');
+                Route::post('/billing/sslcommerz/{plan}',  [BillingController::class, 'processSslcommerz'])->name('billing.sslcommerz');
+                Route::get('/billing/sslcommerz/success',  [BillingController::class, 'sslSuccess'])->name('billing.sslcommerz.success');
+                Route::get('/billing/sslcommerz/fail',     [BillingController::class, 'sslFail'])->name('billing.sslcommerz.fail');
+                Route::get('/billing/sslcommerz/cancel',   [BillingController::class, 'sslCancel'])->name('billing.sslcommerz.cancel');
+                Route::post('/billing/sslcommerz/ipn',     [BillingController::class, 'sslIpn'])->name('billing.sslcommerz.ipn');
 
-                Route::post('/billing/stripe/{plan}',        [BillingController::class, 'processStripe'])->name('billing.stripe');
-                Route::get('/billing/stripe/success',        [BillingController::class, 'stripeSuccess'])->name('billing.stripe.success');
-
-                Route::get('/billing/invoice/{payment}',     [BillingController::class, 'downloadInvoice'])->name('billing.invoice.download');
+                Route::post('/billing/stripe/{plan}',      [BillingController::class, 'processStripe'])->name('billing.stripe');
+                Route::get('/billing/stripe/success',      [BillingController::class, 'stripeSuccess'])->name('billing.stripe.success');
+                Route::get('/billing/invoice/{payment}',   [BillingController::class, 'downloadInvoice'])->name('billing.invoice.download');
 
                 // ── Usage / MIS ────────────────────────────────────────────
                 Route::get('/usage',        [\App\Http\Controllers\UsageController::class, 'index'])->name('usage.index');
@@ -223,23 +218,23 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
                 Route::delete('/team/members/{member}',               [TeamController::class, 'removeMember'])->name('team.member.remove');
 
                 // ── Project Members ────────────────────────────────────────
-                Route::get('/projects/{project}/members',              [ProjectMemberController::class, 'index'])->name('project.members.index');
-                Route::post('/projects/{project}/members',             [ProjectMemberController::class, 'add'])->name('project.members.add');
-                Route::put('/projects/{project}/members/{member}',     [ProjectMemberController::class, 'updateRole'])->name('project.members.role');
-                Route::delete('/projects/{project}/members/{member}',  [ProjectMemberController::class, 'remove'])->name('project.members.remove');
-                Route::put('/projects/{project}/restricted',           [ProjectMemberController::class, 'toggleRestricted'])->name('project.restricted.toggle');
+                Route::get('/projects/{project}/members',             [ProjectMemberController::class, 'index'])->name('project.members.index');
+                Route::post('/projects/{project}/members',            [ProjectMemberController::class, 'add'])->name('project.members.add');
+                Route::put('/projects/{project}/members/{member}',    [ProjectMemberController::class, 'updateRole'])->name('project.members.role');
+                Route::delete('/projects/{project}/members/{member}', [ProjectMemberController::class, 'remove'])->name('project.members.remove');
+                Route::put('/projects/{project}/restricted',          [ProjectMemberController::class, 'toggleRestricted'])->name('project.restricted.toggle');
 
                 // ── Tenant Settings ────────────────────────────────────────
-                Route::get('/settings',                   [SettingsController::class, 'index'])->name('settings.index');
-                Route::put('/settings/profile',           [SettingsController::class, 'updateProfile'])->name('settings.profile');
-                Route::put('/settings/password',          [SettingsController::class, 'updatePassword'])->name('settings.password');
-                Route::put('/settings/workspace',         [SettingsController::class, 'updateWorkspace'])->name('settings.workspace');
-                Route::post('/settings/logo',             [SettingsController::class, 'uploadLogo'])->name('settings.logo');
-                Route::delete('/settings/logo',           [SettingsController::class, 'deleteLogo'])->name('settings.logo.delete');
-                Route::post('/settings/api-keys',         [SettingsController::class, 'createApiKey'])->name('settings.apikey.create');
-                Route::delete('/settings/api-keys/{id}',  [SettingsController::class, 'deleteApiKey'])->name('settings.apikey.delete');
-                Route::put('/settings/notifications',     [SettingsController::class, 'updateNotifications'])->name('settings.notifications');
-                Route::get('/settings/integrations', [SettingsController::class, 'integrations'])->name('settings.integrations');
+                Route::get('/settings',                  [SettingsController::class, 'index'])->name('settings.index');
+                Route::put('/settings/profile',          [SettingsController::class, 'updateProfile'])->name('settings.profile');
+                Route::put('/settings/password',         [SettingsController::class, 'updatePassword'])->name('settings.password');
+                Route::put('/settings/workspace',        [SettingsController::class, 'updateWorkspace'])->name('settings.workspace');
+                Route::post('/settings/logo',            [SettingsController::class, 'uploadLogo'])->name('settings.logo');
+                Route::delete('/settings/logo',          [SettingsController::class, 'deleteLogo'])->name('settings.logo.delete');
+                Route::post('/settings/api-keys',        [SettingsController::class, 'createApiKey'])->name('settings.apikey.create');
+                Route::delete('/settings/api-keys/{id}', [SettingsController::class, 'deleteApiKey'])->name('settings.apikey.delete');
+                Route::put('/settings/notifications',    [SettingsController::class, 'updateNotifications'])->name('settings.notifications');
+                Route::get('/settings/integrations',     [SettingsController::class, 'integrations'])->name('settings.integrations');
 
             }); // end tenant middleware
 
@@ -254,6 +249,34 @@ Route::post('/github/files/{file}/sync',    [GitHubController::class, 'syncFile'
 Route::domain(config('domains.app'))
     ->post('/stripe/webhook', [BillingController::class, 'stripeWebhook'])
     ->name('stripe.webhook');
+
+
+// ── n8n inbound callback (no auth, no CSRF — verified by HMAC signature) ──────
+// n8n is an external server with no Sanctum token or session.
+// Security = HMAC SHA-256 signature check inside N8nController::callback()
+// Tenant is resolved from the Chat model inside the controller.
+Route::domain(config('domains.app'))
+    ->post('/n8n/callback/{chat}', [N8nController::class, 'callback'])
+    ->name('n8n.callback');
+
+// ── Chatbot widget relay (proxies browser → n8n, keeps webhook URL server-side) ─
+Route::domain(config('domains.app'))
+    ->post('/chatbot/relay', function (\Illuminate\Http\Request $r) {
+        $r->validate(['message' => 'required|string|max:1000', 'session_id' => 'required|string']);
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->post(config('services.chatbot.webhook_url'), [
+                    'message'    => $r->message,
+                    'session_id' => $r->session_id,
+                ]);
+
+            return response()->json($response->json());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Chatbot relay error: ' . $e->getMessage());
+            return response()->json(['reply' => 'Sorry, AI is unavailable right now.'], 200);
+        }
+    })->name('chatbot.relay');
 
 
 /*
@@ -274,14 +297,13 @@ Route::domain(config('domains.admin'))->group(function () {
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
 
-        // Dashboard
         Route::get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
 
         // ── Tenants ────────────────────────────────────────────────────────
-        Route::get('/tenants',                    [AdminTenantController::class, 'index'])->name('admin.tenants.index');
-        Route::get('/tenants/{tenant}',           [AdminTenantController::class, 'show'])->name('admin.tenants.show');
-        Route::put('/tenants/{tenant}/plan',      [AdminTenantController::class, 'updatePlan'])->name('admin.tenants.plan');
-        Route::put('/tenants/{tenant}/status',    [AdminTenantController::class, 'updateStatus'])->name('admin.tenants.status');
+        Route::get('/tenants',                 [AdminTenantController::class, 'index'])->name('admin.tenants.index');
+        Route::get('/tenants/{tenant}',        [AdminTenantController::class, 'show'])->name('admin.tenants.show');
+        Route::put('/tenants/{tenant}/plan',   [AdminTenantController::class, 'updatePlan'])->name('admin.tenants.plan');
+        Route::put('/tenants/{tenant}/status', [AdminTenantController::class, 'updateStatus'])->name('admin.tenants.status');
 
         // ── Plans ──────────────────────────────────────────────────────────
         Route::get('/plans',           [AdminPlanController::class, 'index'])->name('admin.plans.index');
@@ -294,12 +316,12 @@ Route::domain(config('domains.admin'))->group(function () {
         Route::put('/payments/{id}/approve', [AdminPaymentController::class, 'approveCod'])->name('admin.payments.approve');
 
         // ── Add-ons ────────────────────────────────────────────────────────
-        Route::get('/addons',                                    [AdminAddonController::class, 'index'])->name('admin.addons.index');
-        Route::post('/addons',                                   [AdminAddonController::class, 'store'])->name('admin.addons.store');
-        Route::put('/addons/{addon}',                            [AdminAddonController::class, 'update'])->name('admin.addons.update');
-        Route::delete('/addons/{addon}',                         [AdminAddonController::class, 'destroy'])->name('admin.addons.destroy');
-        Route::put('/addons/payments/{payment}/approve',         [AdminAddonController::class, 'approvePurchase'])->name('admin.addons.approve');
-        Route::delete('/addons/tenant/{tenantAddon}/revoke',     [AdminAddonController::class, 'revoke'])->name('admin.addons.revoke');
+        Route::get('/addons',                                [AdminAddonController::class, 'index'])->name('admin.addons.index');
+        Route::post('/addons',                               [AdminAddonController::class, 'store'])->name('admin.addons.store');
+        Route::put('/addons/{addon}',                        [AdminAddonController::class, 'update'])->name('admin.addons.update');
+        Route::delete('/addons/{addon}',                     [AdminAddonController::class, 'destroy'])->name('admin.addons.destroy');
+        Route::put('/addons/payments/{payment}/approve',     [AdminAddonController::class, 'approvePurchase'])->name('admin.addons.approve');
+        Route::delete('/addons/tenant/{tenantAddon}/revoke', [AdminAddonController::class, 'revoke'])->name('admin.addons.revoke');
 
         // ── Usage ──────────────────────────────────────────────────────────
         Route::get('/usage',        [AdminUsageController::class, 'index'])->name('admin.usage.index');
@@ -332,4 +354,4 @@ Route::domain(config('domains.admin'))->group(function () {
 
     }); // end superadmin middleware
 
-}); // end admin.easyai.local domain
+}); // end admin domain

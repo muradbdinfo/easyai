@@ -30,5 +30,28 @@ class AddonSeeder extends Seeder
                 'sort_order' => 1,
             ]
         );
+
+        Addon::updateOrCreate(
+            ['slug' => 'n8n-automation'],
+            [
+                'name'          => 'n8n Automation',
+                'description'   => 'Connect EasyAI to your n8n server. Fire webhooks on AI events and receive callbacks back into chats for full workflow automation.',
+                'price'         => 19.00,
+                'currency'      => 'USD',
+                'billing_cycle' => 'monthly',
+                'features'      => [
+                    'Fire webhooks on message sent',
+                    'Fire webhooks on AI reply received',
+                    'Fire webhooks on payment completed',
+                    'Fire webhooks on new tenant registered',
+                    'Receive n8n callbacks back into any chat',
+                    'Per-tenant webhook URL configuration',
+                    'Full webhook delivery logs',
+                    'HMAC signature verification',
+                ],
+                'is_active'  => true,
+                'sort_order' => 2,
+            ]
+        );
     }
 }

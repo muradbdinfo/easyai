@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\TenantController;
 use App\Http\Controllers\Api\V1\AddonController as ApiAddonController;
 use App\Http\Controllers\Api\V1\AgentController as ApiAgentController;
 use App\Http\Controllers\Api\V1\IntegrationController;
+use App\Http\Controllers\Api\V1\N8nController as ApiN8nController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -31,23 +32,6 @@ Route::prefix('v1')->group(function () {
         'throttle:60,1',
     ])->group(function () {
 
-
-    Route::get('projects/{project}/integration-files', [IntegrationController::class, 'files']);
-
-
-    // ── Add-on API ────────────────────────────────────────────────────────────
-Route::get('addons', [ApiAddonController::class, 'index']);
-Route::post('addons/{addon}/purchase', [ApiAddonController::class, 'purchase']);
-Route::delete('addons/{addon}/cancel', [ApiAddonController::class, 'cancel']);
-
-// ── Agent API (requires agent-ai addon) ──────────────────────────────────
-Route::middleware('addon:agent-ai')->group(function () {
-    Route::post('projects/{project}/chats/{chat}/agent/run', [ApiAgentController::class, 'run']);
-    Route::get('projects/{project}/chats/{chat}/agent/{agentRun}/steps', [ApiAgentController::class, 'steps']);
-    Route::post('projects/{project}/chats/{chat}/agent/{agentRun}/stop', [ApiAgentController::class, 'stop']);
-});
-
-
         // ── Auth ──────────────────────────────────────────────────────────
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me',      [AuthController::class, 'me']);
@@ -56,14 +40,41 @@ Route::middleware('addon:agent-ai')->group(function () {
         Route::get('tenant',       [TenantController::class, 'show']);
         Route::get('tenant/usage', [TenantController::class, 'usage']);
 
+        // ── Add-on API ────────────────────────────────────────────────────
+        Route::get('addons',                    [ApiAddonController::class, 'index']);
+        Route::post('addons/{addon}/purchase',  [ApiAddonController::class, 'purchase']);
+        Route::delete('addons/{addon}/cancel',  [ApiAddonController::class, 'cancel']);
 
-        // Knowledge Base
+        // ── Agent API (requires agent-ai addon) ───────────────────────────
+        Route::middleware('addon:agent-ai')->group(function () {
+            Route::post('projects/{project}/chats/{chat}/agent/run',
+                [ApiAgentController::class, 'run']);
+            Route::get('projects/{project}/chats/{chat}/agent/{agentRun}/steps',
+                [ApiAgentController::class, 'steps']);
+            Route::post('projects/{project}/chats/{chat}/agent/{agentRun}/stop',
+                [ApiAgentController::class, 'stop']);
+        });
+
+        // ── n8n Automation API (requires n8n-automation addon) ────────────
+        Route::prefix('n8n')->group(function () {
+            Route::get   ('settings',        [ApiN8nController::class, 'settings']);
+            Route::put   ('settings',        [ApiN8nController::class, 'update']);
+            Route::get   ('logs',            [ApiN8nController::class, 'logs']);
+            Route::delete('logs',            [ApiN8nController::class, 'clearLogs']);
+            // NOTE: callback uses no auth — verified by HMAC signature in controller
+            // so it is registered outside this group below
+        });
+
+        // ── Knowledge Base ────────────────────────────────────────────────
         Route::prefix('projects/{project}/knowledge')->group(function () {
-            Route::get('/',                    [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'show']);
-            Route::post('/',                   [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'store']);
-            Route::post('/documents',          [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'uploadDocument']);
+            Route::get('/',                        [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'show']);
+            Route::post('/',                       [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'store']);
+            Route::post('/documents',              [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'uploadDocument']);
             Route::delete('/documents/{document}', [\App\Http\Controllers\Api\V1\KnowledgeBaseController::class, 'destroyDocument']);
         });
+
+        // ── Integration files ─────────────────────────────────────────────
+        Route::get('projects/{project}/integration-files', [IntegrationController::class, 'files']);
 
         // ── Projects ──────────────────────────────────────────────────────
         Route::apiResource('projects', ProjectController::class);
@@ -77,19 +88,16 @@ Route::middleware('addon:agent-ai')->group(function () {
             Route::post('chats/{chat}/close', [ChatController::class, 'close']);
 
             Route::prefix('chats/{chat}')->group(function () {
-
-                // Messages
                 Route::get('messages',        [MessageController::class, 'index']);
                 Route::post('messages',       [MessageController::class, 'store']);
                 Route::get('messages/status', [MessageController::class, 'status']);
 
-                // File Upload
                 Route::post('upload', [FileUploadController::class, 'store'])
                     ->name('api.chats.upload');
             });
         });
 
-        // ── Attachment delete (standalone, not nested under chat) ─────────
+        // ── Attachment delete ─────────────────────────────────────────────
         Route::delete('attachments/{attachment}', [FileUploadController::class, 'destroy'])
             ->name('api.attachments.destroy');
 
@@ -99,7 +107,7 @@ Route::middleware('addon:agent-ai')->group(function () {
         Route::put('templates/{promptTemplate}',    [PromptTemplateController::class, 'update']);
         Route::delete('templates/{promptTemplate}', [PromptTemplateController::class, 'destroy']);
 
-        // ── Export (higher rate limit — file downloads) ───────────────────
+        // ── Export ────────────────────────────────────────────────────────
         Route::middleware('throttle:20,1')->group(function () {
             Route::get('projects/{project}/chats/{chat}/export/pdf',
                 [ExportController::class, 'exportPdf']);
@@ -114,13 +122,20 @@ Route::middleware('addon:agent-ai')->group(function () {
         Route::get('billing/invoices/{payment}/download', [BillingController::class, 'downloadInvoice']);
 
         // ── Team ──────────────────────────────────────────────────────────
-        Route::get('team',                             [ApiTeamController::class, 'index']);
-        Route::post('team/invite',                     [ApiTeamController::class, 'invite']);
-        Route::delete('team/invitations/{invitation}', [ApiTeamController::class, 'cancelInvite']);
-Route::put('team/members/{member}/role',         [ApiTeamController::class, 'updateRole']);
-Route::put('team/members/{member}/status',       [ApiTeamController::class, 'toggleStatus']);
-Route::delete('team/members/{member}',           [ApiTeamController::class, 'removeMember']);
+        Route::get('team',                               [ApiTeamController::class, 'index']);
+        Route::post('team/invite',                       [ApiTeamController::class, 'invite']);
+        Route::delete('team/invitations/{invitation}',   [ApiTeamController::class, 'cancelInvite']);
+        Route::put('team/members/{member}/role',         [ApiTeamController::class, 'updateRole']);
+        Route::put('team/members/{member}/status',       [ApiTeamController::class, 'toggleStatus']);
+        Route::delete('team/members/{member}',           [ApiTeamController::class, 'removeMember']);
 
-    });
+    }); // end protected group
 
-});
+    // ── n8n inbound callback (NO auth — verified by HMAC signature) ──────
+    // Must be outside auth group because n8n has no Sanctum token.
+    // Tenant is resolved from the chat model inside the controller.
+    Route::middleware('throttle:60,1')
+        ->post('v1/n8n/callback/{chat}', [ApiN8nController::class, 'callback'])
+        ->name('api.n8n.callback');
+
+}); // end v1 prefix

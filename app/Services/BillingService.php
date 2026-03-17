@@ -56,5 +56,17 @@ class BillingService
         } catch (\Throwable $e) {
             Log::warning('BillingService notification failed: ' . $e->getMessage());
         }
+
+
+        // ── n8n: fire payment.completed event ─────────────────────────
+try {
+    (new \App\Services\N8nService())->fire($tenant, 'payment_completed', [
+        'plan'   => $plan->name,
+        'amount' => $payment->amount,
+        'method' => $payment->method,
+    ]);
+} catch (\Throwable) {}
+
+
     }
 }

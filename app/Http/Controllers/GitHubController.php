@@ -144,6 +144,16 @@ class GitHubController extends Controller
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
+        // Skip known binary extensions
+        $ext = strtolower(pathinfo($request->path, PATHINFO_EXTENSION));
+        $binaryExts = ['png','jpg','jpeg','gif','webp','svg','ico','pdf','zip','gz',
+                       'tar','rar','exe','bin','lock','woff','woff2','ttf','eot',
+                       'mp3','mp4','mov','avi','psd','ai','sketch'];
+
+        if (in_array($ext, $binaryExts)) {
+            return response()->json(['error' => 'Skipped binary file: ' . $request->name], 422);
+        }
+
         try {
             $content = $this->github->getFileContent(
                 $conn->access_token,
@@ -154,12 +164,16 @@ class GitHubController extends Controller
             return response()->json(['error' => 'Could not fetch file: ' . $e->getMessage()], 422);
         }
 
-        if (empty($content)) {
-            return response()->json(['error' => 'File is empty or could not be fetched.'], 422);
+        if (empty(trim($content))) {
+            return response()->json(['error' => 'File is empty.'], 422);
         }
 
-        if (!mb_check_encoding($content, 'UTF-8')) {
-            return response()->json(['error' => 'Binary files are not supported.'], 422);
+        // Force UTF-8 conversion instead of rejecting
+        $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+        $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $content);
+
+        if (empty(trim($content))) {
+            return response()->json(['error' => 'File contains no readable text.'], 422);
         }
 
         $externalId = $request->repo . ':' . $request->path;
@@ -210,9 +224,12 @@ class GitHubController extends Controller
             return response()->json(['error' => 'Could not fetch file: ' . $e->getMessage()], 422);
         }
 
-        if (empty($content)) {
-            return response()->json(['error' => 'File is empty or could not be fetched.'], 422);
+        if (empty(trim($content))) {
+            return response()->json(['error' => 'File is empty.'], 422);
         }
+
+        $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+        $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $content);
 
         $file->update([
             'content'   => $content,
@@ -229,7 +246,6 @@ class GitHubController extends Controller
     {
         abort_if($file->tenant_id !== app('tenant')->id, 403);
 
-        // Delete knowledge document (chunks cascade via FK)
         KnowledgeDocument::where('file_path', 'github::' . $file->id)->delete();
         $file->delete();
 
@@ -245,7 +261,6 @@ class GitHubController extends Controller
             ['name' => 'Project Knowledge', 'is_active' => true]
         );
 
-        // Delete old document for this file (chunks cascade)
         KnowledgeDocument::where('knowledge_base_id', $kb->id)
             ->where('file_path', 'github::' . $file->id)
             ->delete();

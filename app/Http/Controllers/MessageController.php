@@ -91,6 +91,17 @@ class MessageController extends Controller
             );
         }
 
+        // ── n8n: fire message.sent event ──────────────────────────────
+try {
+    (new \App\Services\N8nService())->fire($tenant, 'message_sent', [
+        'chat_id'    => $chat->id,
+        'chat_title' => $chat->title,
+        'project'    => $project->name,
+        'content'    => mb_substr($validated['content'], 0, 500),
+        'user_id'    => $request->user()->id,
+    ]);
+} catch (\Throwable) {}
+
         // NOTE: No SendMessageJob dispatched here.
         // AI response is streamed directly by StreamController via SSE.
 

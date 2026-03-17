@@ -10,6 +10,8 @@ class GitHubService
     private string $clientSecret;
     private string $redirectUri;
 
+    private const MAX_BYTES = 512000; // 500KB max file size
+
     public function __construct()
     {
         $this->clientId     = config('services.github.client_id');
@@ -31,7 +33,8 @@ class GitHubService
 
     public function exchangeCode(string $code): array
     {
-        $response = Http::withHeaders(['Accept' => 'application/json'])
+        $response = Http::timeout(30)
+            ->withHeaders(['Accept' => 'application/json'])
             ->post('https://github.com/login/oauth/access_token', [
                 'client_id'     => $this->clientId,
                 'client_secret' => $this->clientSecret,
@@ -44,7 +47,8 @@ class GitHubService
 
     public function getUser(string $token): array
     {
-        $response = Http::withToken($token)
+        $response = Http::timeout(30)
+            ->withToken($token)
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get('https://api.github.com/user');
 
@@ -53,7 +57,8 @@ class GitHubService
 
     public function listRepos(string $token, int $page = 1): array
     {
-        $response = Http::withToken($token)
+        $response = Http::timeout(30)
+            ->withToken($token)
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get('https://api.github.com/user/repos', [
                 'per_page' => 30,
@@ -70,7 +75,8 @@ class GitHubService
         $path = $path ?? '';
         $url  = "https://api.github.com/repos/{$repo}/contents/{$path}";
 
-        $response = Http::withToken($token)
+        $response = Http::timeout(30)
+            ->withToken($token)
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get($url);
 
@@ -80,7 +86,7 @@ class GitHubService
 
         $items = $response->json();
 
-        // GitHub returns object (not array) for single file path
+        // GitHub returns single object for direct file path
         if (isset($items['type'])) {
             return [$items];
         }
@@ -92,7 +98,8 @@ class GitHubService
     {
         $url = "https://api.github.com/repos/{$repo}/contents/{$path}";
 
-        $response = Http::withToken($token)
+        $response = Http::timeout(30)
+            ->withToken($token)
             ->withHeaders(['Accept' => 'application/vnd.github+json'])
             ->get($url);
 
@@ -102,14 +109,19 @@ class GitHubService
 
         $data = $response->json();
 
-        // GitHub returns base64-encoded content
+        // Skip files that are too large
+        if (isset($data['size']) && $data['size'] > self::MAX_BYTES) {
+            return '';
+        }
+
+        // Standard: base64-encoded content
         if (isset($data['encoding']) && $data['encoding'] === 'base64' && isset($data['content'])) {
             return base64_decode(str_replace("\n", '', $data['content']));
         }
 
-        // Large files: use download_url
+        // Large files: download_url
         if (isset($data['download_url'])) {
-            $raw = Http::withToken($token)->get($data['download_url']);
+            $raw = Http::timeout(30)->withToken($token)->get($data['download_url']);
             return $raw->successful() ? $raw->body() : '';
         }
 

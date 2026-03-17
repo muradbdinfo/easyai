@@ -126,6 +126,19 @@ class StreamController extends Controller
                 'model'     => $projectModel,
             ]);
 
+
+            // ── n8n: fire assistant.replied event ─────────────────────────
+try {
+    (new \App\Services\N8nService())->fire($tenant, 'assistant_replied', [
+        'chat_id'    => $chatId,
+        'chat_title' => $chat->title,
+        'project'    => $project->name,
+        'content'    => mb_substr($fullContent, 0, 500),
+        'tokens'     => $completionTokens,
+        'model'      => $projectModel,
+    ]);
+} catch (\Throwable) {}
+
             // ── Token accounting (skip when Ollama failed) ─────────────────
             if (!$hasError) {
                 $totalTokens = $promptTokens + $completionTokens;

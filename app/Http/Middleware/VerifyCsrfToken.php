@@ -9,5 +9,6 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'billing/sslcommerz/*',
         'stripe/webhook',
+        'n8n/callback/*',
     ];
 }

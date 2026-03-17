@@ -92,6 +92,15 @@ class HandleInertiaRequests extends Middleware
             'templates'        => $templates,
             'ollama_models'    => array_values($ollamaModels),
             'has_agent_addon'  => $tenant ? $tenant->hasAddon('agent-ai') : false,
+            'active_addons'    => $tenant ? \App\Models\TenantAddon::where('tenant_id', $tenant->id)
+    ->where('status', 'active')
+    ->where(function ($q) { $q->whereNull('expires_at')->orWhere('expires_at', '>', now()); })
+    ->with('addon:id,slug')
+    ->get()
+    ->pluck('addon.slug')
+    ->filter()
+    ->values()
+    ->toArray() : [],
             'theme' => \App\Services\ThemeService::get(),
             'flash' => [
                 'success' => $request->session()->get('success'),

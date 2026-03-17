@@ -2,8 +2,9 @@
 // FILE: resources/js/Layouts/LandingLayout.vue
 import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
+import ChatbotWidget from '@/Components/ChatbotWidget.vue'
 
-const props = defineProps({ settings: { type: Object, required: true } })
+const props = defineProps({ settings: { type: Object, required: true }, chatbotWebhook: { type: String, default: '' } })
 
 const page  = usePage()
 const theme = computed(() => page.props.theme ?? {})
@@ -94,5 +95,14 @@ const vars = computed(() => ({
                 </div>
             </div>
         </footer>
+
+
+        <ChatbotWidget
+    v-if="chatbotWebhook"
+    :webhook-url="chatbotWebhook"
+    :bot-name="settings.app_name + ' Assistant'"
+    greeting="Hi! 👋 Ask me anything about our platform."
+/>
+
     </div>
 </template>

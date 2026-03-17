@@ -20,7 +20,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <LandingLayout :settings="settings">
+<LandingLayout :settings="settings" :chatbot-webhook="settings.chatbot_webhook">
 
         <!-- ─── HERO ──────────────────────────────────────────────── -->
         <section class="relative pt-28 pb-20 px-5 text-center overflow-hidden">
