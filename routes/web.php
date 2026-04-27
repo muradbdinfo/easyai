@@ -352,3 +352,7 @@ Route::domain(config('domains.admin'))->group(function () {
     }); // end superadmin middleware
 
 }); // end admin domain
+
+
+// Contact form
+Route::post('/contact', [App\Http\Controllers\ContactController::class, 'store'])->name('contact.store');

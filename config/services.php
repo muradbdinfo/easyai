@@ -46,4 +46,9 @@ return [
     'webhook_url' => env('CHATBOT_WEBHOOK_URL', ''),
 ],
 
+'contact' => [
+    'webhook_url' => env('CONTACT_WEBHOOK_URL', ''),
+],
+
+
 ];

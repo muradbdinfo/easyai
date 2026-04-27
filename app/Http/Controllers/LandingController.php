@@ -1,13 +1,13 @@
 <?php
 
-// FILE: app/Http/Controllers/LandingController.php
-
 namespace App\Http\Controllers;
 
 use App\Models\Addon;
 use App\Models\Plan;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
@@ -16,19 +16,19 @@ class LandingController extends Controller
     private function settings(): array
     {
         return [
-            'primary_color'    => Setting::get('landing_primary_color', '#6366f1'),
-            'app_name'         => Setting::get('app_name', config('app.name', 'EasyAI')),
-            'logo_url'         => Setting::get('logo_url'),
-            'hero_title'       => Setting::get('landing_hero_title', 'Your Private AI Workspace'),
-            'hero_subtitle'    => Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace for your team. Your data never leaves your server.'),
-            'hero_cta'         => Setting::get('landing_hero_cta', 'Start Free Trial'),
-            'announcement'     => Setting::get('landing_announcement'),
-            'show_pricing'     => Setting::get('landing_show_pricing', '1') === '1',
-            'show_contact'     => Setting::get('landing_show_contact', '1') === '1',
-            'contact_email'    => Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', '')),
-            'footer_text'      => Setting::get('landing_footer_text', 'EasyAI — Self-Hosted AI Workspace'),
-            'features'         => json_decode(Setting::get('landing_features', '[]'), true) ?: $this->defaultFeatures(),
-            'faq'              => json_decode(Setting::get('landing_faq', '[]'), true) ?: $this->defaultFaq(),
+            'primary_color'  => Setting::get('landing_primary_color', '#6366f1'),
+            'app_name'       => Setting::get('app_name', config('app.name', 'EasyAI')),
+            'logo_url'       => Setting::get('logo_url'),
+            'hero_title'     => Setting::get('landing_hero_title', 'Your Private AI Workspace'),
+            'hero_subtitle'  => Setting::get('landing_hero_subtitle', 'Self-hosted, multi-tenant AI workspace for your team. Your data never leaves your server.'),
+            'hero_cta'       => Setting::get('landing_hero_cta', 'Start Free Trial'),
+            'announcement'   => Setting::get('landing_announcement'),
+            'show_pricing'   => Setting::get('landing_show_pricing', '1') === '1',
+            'show_contact'   => Setting::get('landing_show_contact', '1') === '1',
+            'contact_email'  => Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', '')),
+            'footer_text'    => Setting::get('landing_footer_text', 'EasyAI — Self-Hosted AI Workspace'),
+            'features'       => json_decode(Setting::get('landing_features', '[]'), true) ?: $this->defaultFeatures(),
+            'faq'            => json_decode(Setting::get('landing_faq', '[]'), true) ?: $this->defaultFaq(),
             'chatbot_webhook' => config('services.chatbot.webhook_url', ''),
         ];
     }
@@ -73,15 +73,35 @@ class LandingController extends Controller
             'message' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
-        try {
-            $to = Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', 'admin@easyai.local'));
-            Mail::raw(
-                "From: {$request->name} <{$request->email}>\nSubject: {$request->subject}\n\n{$request->message}",
-                fn ($m) => $m->to($to)
-                    ->subject("Contact: {$request->subject}")
-                    ->replyTo($request->email, $request->name)
-            );
-        } catch (\Throwable) {}
+        // ── n8n webhook (admin email + auto-reply to visitor) ─────────────
+        $webhookUrl = config('services.contact.webhook_url');
+        if ($webhookUrl) {
+            try {
+                Http::timeout(10)->post($webhookUrl, [
+                    'name'         => $request->name,
+                    'email'        => $request->email,
+                    'subject'      => $request->subject,
+                    'message'      => $request->message,
+                    'submitted_at' => now()->format('Y-m-d H:i:s'),
+                    'site_url'     => config('app.url'),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Contact webhook: ' . $e->getMessage());
+            }
+        }
+
+        // ── Fallback: direct mail if webhook not configured ───────────────
+        if (!$webhookUrl) {
+            try {
+                $to = Setting::get('landing_contact_email', env('MAIL_FROM_ADDRESS', 'admin@easyai.local'));
+                Mail::raw(
+                    "From: {$request->name} <{$request->email}>\nSubject: {$request->subject}\n\n{$request->message}",
+                    fn ($m) => $m->to($to)
+                        ->subject("Contact: {$request->subject}")
+                        ->replyTo($request->email, $request->name)
+                );
+            } catch (\Throwable) {}
+        }
 
         return back()->with('success', "Message sent! We'll get back to you within 24 hours.");
     }
@@ -89,15 +109,15 @@ class LandingController extends Controller
     private function defaultFeatures(): array
     {
         return [
-            ['icon' => '🧠', 'title' => 'AI Memory',           'desc' => 'Projects remember context across conversations.'],
-            ['icon' => '📁', 'title' => 'Projects & Chats',    'desc' => 'Organize work into projects with full history.'],
-            ['icon' => '📚', 'title' => 'Knowledge Base',      'desc' => 'Upload documents. AI answers from your own data.'],
-            ['icon' => '👥', 'title' => 'Team Collaboration',  'desc' => 'Invite teammates, assign roles, restrict projects.'],
-            ['icon' => '🔒', 'title' => '100% Private',        'desc' => 'Self-hosted Ollama. Data never leaves your server.'],
-            ['icon' => '💳', 'title' => 'Flexible Billing',    'desc' => 'COD, bKash/Nagad via SSLCommerz, or Stripe.'],
-            ['icon' => '📄', 'title' => 'Chat Export',         'desc' => 'Export conversations as PDF or Markdown.'],
-            ['icon' => '⚡', 'title' => 'Token Quotas',        'desc' => 'Per-tenant token limits with monthly auto-reset.'],
-            ['icon' => '🔑', 'title' => 'REST API',            'desc' => 'Full API with Sanctum token auth for mobile apps.'],
+            ['icon' => '🧠', 'title' => 'AI Memory',          'desc' => 'Projects remember context across conversations.'],
+            ['icon' => '📁', 'title' => 'Projects & Chats',   'desc' => 'Organize work into projects with full history.'],
+            ['icon' => '📚', 'title' => 'Knowledge Base',     'desc' => 'Upload documents. AI answers from your own data.'],
+            ['icon' => '👥', 'title' => 'Team Collaboration', 'desc' => 'Invite teammates, assign roles, restrict projects.'],
+            ['icon' => '🔒', 'title' => '100% Private',       'desc' => 'Self-hosted Ollama. Data never leaves your server.'],
+            ['icon' => '💳', 'title' => 'Flexible Billing',   'desc' => 'COD, bKash/Nagad via SSLCommerz, or Stripe.'],
+            ['icon' => '📄', 'title' => 'Chat Export',        'desc' => 'Export conversations as PDF or Markdown.'],
+            ['icon' => '⚡', 'title' => 'Token Quotas',       'desc' => 'Per-tenant token limits with monthly auto-reset.'],
+            ['icon' => '🔑', 'title' => 'REST API',           'desc' => 'Full API with Sanctum token auth for mobile apps.'],
         ];
     }
 

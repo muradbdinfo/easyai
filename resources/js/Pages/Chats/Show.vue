@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AgentPanel from '@/Components/AgentPanel.vue'
+import MarkdownRenderer from '@/Components/MarkdownRenderer.vue'
 import {
     Bot, User, Send, ChevronRight, AlertCircle, CheckCircle,
     FileText, Zap, Copy, X, Brain, Plus, Download,
@@ -81,14 +82,12 @@ function scrollToBottom() {
 // Agent: push goal as user bubble + thinking placeholder
 // ─────────────────────────────────────────────────────────────────────────────
 function onAgentGoalSubmitted(goalText) {
-    // Push user bubble immediately
     messages.value.push({
         id:         'agent-goal-' + Date.now(),
         role:       'user',
         content:    goalText,
         created_at: new Date().toISOString(),
     })
-    // Push thinking placeholder (content: null = shows spinner)
     messages.value.push({
         id:         'agent-thinking',
         role:       'assistant',
@@ -102,7 +101,6 @@ function onAgentGoalSubmitted(goalText) {
 // Agent: fetch real messages from DB after run completes
 // ─────────────────────────────────────────────────────────────────────────────
 async function fetchLatestMessages() {
-    // Remove thinking placeholder first
     messages.value = messages.value.filter(m => m.id !== 'agent-thinking')
 
     try {
@@ -531,7 +529,7 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                         <!-- ── User message ── -->
                         <div v-if="msg.role === 'user'" class="flex justify-end gap-2 group">
                             <div class="max-w-[75%]">
-                                <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed">
+                                <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
                                     {{ msg.content }}
 
                                     <div v-if="msg.has_attachment && msg.attachment"
@@ -579,7 +577,7 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                                 <Bot class="w-4 h-4 text-indigo-400" />
                             </div>
                             <div class="max-w-[75%]">
-                                <div class="bg-slate-800 text-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
+                                <div class="bg-slate-800 text-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed">
 
                                     <!-- Agent thinking placeholder (content is null) -->
                                     <span v-if="msg.content === null"
@@ -588,8 +586,8 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                                         Agent is working… check the Agent panel →
                                     </span>
 
-                                    <!-- Normal message content -->
-                                    <span v-else>{{ msg.content }}</span>
+                                    <!-- Markdown-rendered message content -->
+                                    <MarkdownRenderer v-else :content="msg.content" />
 
                                 </div>
                                 <div class="flex items-center gap-2 mt-1">
@@ -613,8 +611,8 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                         <div class="w-7 h-7 bg-indigo-600/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                             <Bot class="w-4 h-4 text-indigo-400" />
                         </div>
-                        <div class="max-w-[75%] bg-slate-800 text-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
-                            <span v-if="streamingContent">{{ streamingContent }}</span>
+                        <div class="max-w-[75%] bg-slate-800 text-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm leading-relaxed">
+                            <MarkdownRenderer v-if="streamingContent" :content="streamingContent" />
                             <span v-else class="flex items-center gap-1.5 py-0.5">
                                 <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay:0ms" />
                                 <span class="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style="animation-delay:150ms" />
