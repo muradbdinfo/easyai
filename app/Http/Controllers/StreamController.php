@@ -32,7 +32,13 @@ class StreamController extends Controller
         abort_if($chat->tenant_id    !== $tenant->id, 403);
         abort_if($chat->project_id   !== $project->id, 404);
 
-        $messages = $memory->buildContext($chat, $project);
+        // Get last user message for RAG search
+        $lastUserMsg = \App\Models\Message::where('chat_id', $chat->id)
+            ->where('role', 'user')
+            ->latest()
+            ->value('content') ?? '';
+
+        $messages = $memory->buildContext($chat, $project, $lastUserMsg);
         $messages = $this->injectAttachment($chat, $messages, $project->model ?? config('ollama.model'));
 
         $ollamaUrl    = rtrim(config('ollama.url'), '/');
@@ -64,12 +70,14 @@ class StreamController extends Controller
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                 'model'    => $projectModel,
                 'messages' => $messages,
-                'stream'   => true,
+                'stream'      => true,
+                'options'     => ['num_predict' => 2048],
+                'options'     => ['num_predict' => 2048],
             ]));
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
 
             curl_setopt($ch, CURLOPT_POST,           true);
-            curl_setopt($ch, CURLOPT_TIMEOUT,        120);
+            curl_setopt($ch, CURLOPT_TIMEOUT,        (int) config('ollama.timeout', 300));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 
             curl_setopt($ch, CURLOPT_WRITEFUNCTION,
@@ -103,6 +111,7 @@ class StreamController extends Controller
             $curlError = curl_error($ch);
             curl_close($ch);
 
+            if ($curlError) { \Log::error("SSE curl: " . $curlError); }
             if ($curlError || empty(trim($fullContent))) {
                 $hasError    = true;
                 $fullContent = 'Sorry, I could not connect to the AI engine. Please try again.';
@@ -111,12 +120,14 @@ class StreamController extends Controller
             }
 
             $assistantMsg = Message::create([
-                'chat_id'   => $chatId,
-                'tenant_id' => $tenantId,
-                'role'      => 'assistant',
-                'content'   => $fullContent,
-                'tokens'    => $completionTokens,
-                'model'     => $projectModel,
+                'chat_id'       => $chatId,
+                'tenant_id'     => $tenantId,
+                'role'          => 'assistant',
+                'content'       => $fullContent,
+                'tokens'        => $completionTokens,
+                'model'         => $projectModel,
+                'status'        => $hasError ? 'failed' : 'completed',
+                'error_message' => $hasError ? $curlError : null,
             ]);
 
             try {
@@ -160,6 +171,47 @@ class StreamController extends Controller
                 $msgCount = Message::where('chat_id', $chatId)->count();
                 if ($msgCount >= 20 && $msgCount % 20 === 0) {
                     SummarizeChatJob::dispatch($chatId);
+                }
+            }
+
+            // ── AI-generated chat title (Claude-style) ──
+            if (!$hasError && ($chat->title === 'New Chat' || $chat->title === null)) {
+                $firstUserMessage = Message::where('chat_id', $chatId)
+                    ->where('role', 'user')
+                    ->orderBy('id')
+                    ->first();
+                if ($firstUserMessage) {
+                    try {
+                        $titleResponse = \Illuminate\Support\Facades\Http::timeout(15)
+                            ->post("{$ollamaUrl}/api/chat", [
+                                'model'   => $projectModel,
+                                'stream'  => false,
+                                'options' => ['num_predict' => 20],
+                                'messages' => [
+                                    [
+                                        'role'    => 'system',
+                                        'content' => 'Generate a short chat title (max 6 words) for this conversation. Reply with ONLY the title, no quotes, no punctuation at the end.',
+                                    ],
+                                    [
+                                        'role'    => 'user',
+                                        'content' => mb_substr($firstUserMessage->content, 0, 200),
+                                    ],
+                                ],
+                            ]);
+                        $aiTitle = trim($titleResponse->json('message.content') ?? '');
+                        $aiTitle = trim($aiTitle, '"\'.');
+                        if (mb_strlen($aiTitle) > 2 && mb_strlen($aiTitle) <= 60) {
+                            $chat->update(['title' => $aiTitle]);
+                        } else {
+                            $chat->update([
+                                'title' => \Illuminate\Support\Str::limit($firstUserMessage->content, 40, '...'),
+                            ]);
+                        }
+                    } catch (\Throwable) {
+                        $chat->update([
+                            'title' => \Illuminate\Support\Str::limit($firstUserMessage->content, 40, '...'),
+                        ]);
+                    }
                 }
             }
 

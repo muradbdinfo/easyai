@@ -1,20 +1,18 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 import {
     FolderOpen, MessageSquare, Plus, ChevronDown,
     ChevronRight, Trash2, Zap
 } from 'lucide-vue-next'
 
-const props = defineProps({
-    projects: {
-        type: Array,
-        default: () => [],
-    },
-})
+defineProps({ projects: { type: Array, default: () => [] } })
 
 const page             = usePage()
 const expandedProjects = ref({})
+
+// Read directly from shared Inertia props so router.reload() triggers reactivity
+const sidebarProjects = computed(() => page.props.sidebar_projects ?? [])
 
 function toggleProject(id) {
     expandedProjects.value[id] = !expandedProjects.value[id]
@@ -73,14 +71,14 @@ function isProjectActive(projectId) {
         </div>
 
         <!-- Empty -->
-        <div v-if="!projects || projects.length === 0"
+        <div v-if="sidebarProjects.length === 0"
              class="px-2 py-3 text-slate-600 text-xs text-center">
             No projects yet
         </div>
 
         <!-- Project list -->
         <div v-else class="space-y-0.5">
-            <div v-for="project in projects" :key="project.id">
+            <div v-for="project in sidebarProjects" :key="project.id">
 
                 <!-- Project row -->
                 <div
@@ -121,9 +119,7 @@ function isProjectActive(projectId) {
                         v-for="chat in project.chats"
                         :key="chat.id"
                         class="flex items-center gap-1 rounded-lg group"
-                        :class="isChatActive(chat.id)
-                            ? 'bg-indigo-600/20'
-                            : 'hover:bg-slate-800/50'"
+                        :class="isChatActive(chat.id) ? 'bg-indigo-600/20' : 'hover:bg-slate-800/50'"
                     >
                         <Link
                             :href="route('projects.chats.show', [project.id, chat.id])"
@@ -151,10 +147,7 @@ function isProjectActive(projectId) {
                 </div>
 
                 <!-- Empty chats state -->
-                <div
-                    v-else-if="isExpanded(project.id)"
-                    class="ml-6 py-1 text-slate-700 text-xs"
-                >
+                <div v-else-if="isExpanded(project.id)" class="ml-6 py-1 text-slate-700 text-xs">
                     No chats yet
                 </div>
 

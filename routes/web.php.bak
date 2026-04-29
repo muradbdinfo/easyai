@@ -145,7 +145,6 @@ Route::domain(config('domains.app'))->group(function () {
                     Route::post('/',                       [KnowledgeBaseController::class, 'store'])->name('kb.store');
                     Route::post('/documents',              [KnowledgeBaseController::class, 'uploadDocument'])->name('kb.upload');
                     Route::delete('/documents/{document}', [KnowledgeBaseController::class, 'destroyDocument'])->name('kb.document.destroy');
-                    Route::post('/upload-url', [KnowledgeBaseController::class, 'uploadUrl'])->name('kb.upload-url');
                 });
 
                 // ── Knowledge Base (chat-level) ────────────────────────────
@@ -169,7 +168,6 @@ Route::domain(config('domains.app'))->group(function () {
                     Route::prefix('/{chat}/messages')->group(function () {
                         Route::post('/', [MessageController::class, 'store'])->name('projects.chats.messages.store');
                         Route::get('/',  [MessageController::class, 'index'])->name('projects.chats.messages.index');
-                        Route::post('/{message}/retry', [MessageController::class, 'retry'])->name('projects.chats.messages.retry');
                     });
 
                     Route::get('/{chat}/stream',  [StreamController::class, 'stream'])->name('projects.chats.stream');

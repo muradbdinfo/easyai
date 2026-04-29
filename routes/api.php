@@ -92,6 +92,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('messages',        [MessageController::class, 'index']);
                 Route::post('messages',       [MessageController::class, 'store']);
                 Route::get('messages/status', [MessageController::class, 'status']);
+                Route::post("messages/{message}/retry", [MessageController::class, "retry"]);
                 Route::post('upload', [FileUploadController::class, 'store'])->name('api.chats.upload');
             });
         });

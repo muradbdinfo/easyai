@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\GenerateChatTitleJob;
+use App\Jobs\SendMessageJob;
 use App\Models\Chat;
 use App\Models\ChatAttachment;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\Tenant;
 use App\Services\QuotaService;
 use Illuminate\Http\Request;
 
@@ -155,6 +157,35 @@ try {
                 'status'       => $fresh->status,
                 'total_tokens' => $fresh->total_tokens,
             ],
+        ]);
+    }
+
+    /**
+     * Retry a failed assistant message.
+     * POST /projects/{project}/chats/{chat}/messages/{message}/retry
+     */
+    public function retry(Request $request, Project $project, Chat $chat, Message $message)
+    {
+        $tenant = app('tenant');
+
+        abort_if($project->tenant_id !== $tenant->id, 403);
+        abort_if($chat->tenant_id   !== $tenant->id, 403);
+        abort_if($message->chat_id  !== $chat->id, 404);
+        abort_if($message->role !== 'assistant' || $message->status !== 'failed', 422, 'Only failed assistant messages can be retried.');
+
+        if (!$this->quota->check($tenant)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'quota_exceeded',
+            ], 402);
+        }
+
+        // Delete the failed assistant message — SSE stream will create a new one
+        $message->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ready to retry.',
         ]);
     }
 }

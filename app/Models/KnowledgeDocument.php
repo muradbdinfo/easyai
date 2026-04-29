@@ -8,6 +8,7 @@ class KnowledgeDocument extends Model
 {
     protected $fillable = [
         'knowledge_base_id', 'tenant_id', 'title',
+        'source_type', 'source_url',
         'file_path', 'file_type', 'file_size',
         'status', 'error_message', 'chunk_count',
     ];
@@ -26,5 +27,24 @@ class KnowledgeDocument extends Model
     public function fileTypeLabel(): string
     {
         return strtoupper($this->file_type);
+    }
+
+    public function isUrl(): bool
+    {
+        return $this->source_type === 'url';
+    }
+
+    public function isFile(): bool
+    {
+        return $this->source_type === 'file';
+    }
+
+    public function sourceLabel(): string
+    {
+        return match ($this->source_type) {
+            'url'    => 'URL',
+            'github' => 'GitHub',
+            default  => strtoupper($this->file_type ?? 'FILE'),
+        };
     }
 }

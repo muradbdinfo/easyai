@@ -4,7 +4,7 @@ import { useForm, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import {
   Brain, FileText, Upload, Trash2, Plus, CheckCircle,
-  AlertCircle, Clock, RefreshCw, Save, X, File
+  AlertCircle, Clock, RefreshCw, Save, X, File, Globe, Link
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -53,6 +53,23 @@ const uploadDoc = () => {
       uploadForm.reset()
       if (fileInput.value) fileInput.value.value = ''
     },
+  })
+}
+
+
+// ── URL Import form ────────────────────────────────────────────────
+const urlForm = useForm({
+  url: '',
+  title: '',
+  max_pages: 1,
+  chat_id: props.chat?.id ?? null,
+})
+
+const importUrl = () => {
+  if (!urlForm.url) return
+  urlForm.post(route('kb.upload-url', props.project.id), {
+    preserveScroll: true,
+    onSuccess: () => { urlForm.reset() },
   })
 }
 
@@ -182,6 +199,39 @@ const pageTitle = computed(() =>
             <Upload class="w-4 h-4" />
             {{ uploadForm.processing ? 'Uploading...' : 'Upload & Process' }}
           </button>
+        </div>
+
+
+        <!-- URL Import -->
+        <div class="bg-slate-800 rounded-xl p-5 space-y-4">
+          <h3 class="text-white font-medium flex items-center gap-2">
+            <Globe class="w-4 h-4 text-emerald-400" /> Import from URL
+          </h3>
+          <p class="text-xs text-slate-400">Crawl a webpage and add its content to the knowledge base.</p>
+
+          <input v-model="urlForm.url" type="url" placeholder="https://example.com/docs/page"
+            class="w-full bg-slate-700 text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+
+          <div class="flex gap-3">
+            <input v-model="urlForm.title" placeholder="Title (optional)"
+              class="flex-1 bg-slate-700 text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+
+            <select v-model="urlForm.max_pages"
+              class="bg-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option :value="1">1 page</option>
+              <option :value="3">3 pages</option>
+              <option :value="5">5 pages</option>
+              <option :value="10">10 pages</option>
+            </select>
+          </div>
+
+          <button @click="importUrl" :disabled="!urlForm.url || urlForm.processing"
+            class="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg disabled:opacity-50">
+            <Globe class="w-4 h-4" />
+            {{ urlForm.processing ? 'Crawling...' : 'Crawl & Import' }}
+          </button>
+
+          <p v-if="urlForm.errors.url" class="text-red-400 text-xs">{{ urlForm.errors.url }}</p>
         </div>
 
         <!-- Documents List -->

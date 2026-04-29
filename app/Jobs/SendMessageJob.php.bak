@@ -24,9 +24,8 @@ class SendMessageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 3;
+    public int $tries   = 2;
     public int $timeout = 150;
-    public array $backoff = [10, 30, 60];
 
     public function __construct(
         public int  $chatId,
@@ -120,32 +119,16 @@ class SendMessageJob implements ShouldQueue
         try {
             $result = $ollama->chat($messages, $chat->project->model ?? null);
         } catch (\Throwable $e) {
-            Log::error("SendMessageJob: Ollama error - {$e->getMessage()}");
-
-            $friendlyError = match (true) {
-                str_contains($e->getMessage(), 'Connection refused')  => 'AI server is currently offline. Please retry.',
-                str_contains($e->getMessage(), 'timed out')           => 'AI took too long to respond. Please retry.',
-                str_contains($e->getMessage(), 'out of memory')       => 'AI server is overloaded. Please retry later.',
-                str_contains($e->getMessage(), '404')                 => 'AI model not found on server.',
-                default                                               => 'Something went wrong. Please retry.',
-            };
+            Log::error("SendMessageJob: Ollama error — {$e->getMessage()}");
 
             Message::create([
-                'chat_id'       => $this->chatId,
-                'tenant_id'     => $this->tenantId,
-                'role'          => 'assistant',
-                'content'       => $friendlyError,
-                'tokens'        => 0,
-                'model'         => $chat->project->model ?? config('ollama.model'),
-                'status'        => 'failed',
-                'error_message' => Str::limit($e->getMessage(), 500),
-                'retry_count'   => $this->attempts(),
+                'chat_id'   => $this->chatId,
+                'tenant_id' => $this->tenantId,
+                'role'      => 'assistant',
+                'content'   => 'Sorry, I could not connect to the AI engine. Please try again.',
+                'tokens'    => 0,
+                'model'     => $chat->project->model ?? config('ollama.model'),
             ]);
-
-            // Re-throw if attempts remain so Laravel auto-retries with backoff
-            if ($this->attempts() < $this->tries) {
-                throw $e;
-            }
             return;
         }
 
@@ -157,7 +140,6 @@ class SendMessageJob implements ShouldQueue
             'content'   => $result['content'],
             'tokens'    => $result['completion_tokens'],
             'model'     => $chat->project->model ?? config('ollama.model'),
-            'status'    => 'completed',
         ]);
 
         // -- h) Update chat title from first user message --------------
@@ -223,26 +205,5 @@ class SendMessageJob implements ShouldQueue
                 'trace'   => $e->getTraceAsString(),
             ]);
         }
-    }
-
-    /**
-     * Handle final failure after all retries exhausted.
-     */
-    public function failed(\Throwable $e): void
-    {
-        Message::where('chat_id', $this->chatId)
-            ->where('role', 'assistant')
-            ->where('status', 'pending')
-            ->latest()
-            ->take(1)
-            ->update([
-                'status'        => 'failed',
-                'content'       => 'All retry attempts failed. Please retry manually.',
-                'error_message' => Str::limit($e->getMessage(), 500),
-            ]);
-
-        Log::error("SendMessageJob FINAL FAILURE chat:{$this->chatId}", [
-            'error' => $e->getMessage(),
-        ]);
     }
 }

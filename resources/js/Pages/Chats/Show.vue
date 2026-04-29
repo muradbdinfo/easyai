@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import axios from 'axios'
 import { router, usePage } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import AgentPanel from '@/Components/AgentPanel.vue'
@@ -281,6 +282,86 @@ function copyMessage(msg) {
     copied.value = msg.id
     setTimeout(() => copied.value = null, 2000)
 }
+
+// ── Retry failed message ─────────────────────────────────────────────────
+const retrying = ref(null)
+
+async function retryMessage(msg) {
+    if (retrying.value === msg.id || isStreaming.value) return
+    retrying.value = msg.id
+
+    try {
+        // Delete the failed message from server
+        await axios.post(
+            route('projects.chats.messages.retry', {
+                project: props.project.id,
+                chat: props.chat.id,
+                message: msg.id,
+            })
+        )
+
+        // Remove from local messages array
+        const idx = messages.value.findIndex(m => m.id === msg.id)
+        if (idx !== -1) messages.value.splice(idx, 1)
+
+        // Re-trigger SSE stream (same as normal send but without new user message)
+        streamingContent.value = ''
+        isStreaming.value = true
+        await nextTick()
+        scrollToBottom()
+
+        const url = route('projects.chats.stream', {
+            project: props.project.id,
+            chat: props.chat.id,
+        })
+
+        const response = await fetch(url, {
+            headers: { 'Accept': 'text/event-stream' },
+        })
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            for (const line of chunk.split('\n')) {
+                if (!line.startsWith('data: ')) continue
+                try {
+                    const data = JSON.parse(line.slice(6))
+                    if (data.done) {
+                        isStreaming.value = false
+                        // Push completed message
+                        messages.value.push({
+                            id: data.message_id,
+                            role: 'assistant',
+                            content: streamingContent.value,
+                            status: data.status || 'completed',
+                            created_at: new Date().toISOString(),
+                        })
+                        streamingContent.value = ''
+                        chatTokens.value = data.total_tokens ?? chatTokens.value
+                        if (data.chat_title) chatTitle.value = data.chat_title
+                        if (data.chat_status) chatStatus.value = data.chat_status
+                        await nextTick()
+                        scrollToBottom()
+                    } else if (data.token) {
+                        streamingContent.value += data.token
+                        scrollToBottom()
+                    }
+                } catch {}
+            }
+        }
+    } catch (e) {
+        console.error('Retry failed:', e)
+        isStreaming.value = false
+    } finally {
+        retrying.value = null
+    }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Templates
@@ -584,6 +665,25 @@ onUnmounted(() => { eventSource?.close(); eventSource = null })
                                           class="flex items-center gap-2 text-slate-400 text-xs py-0.5">
                                         <RefreshCw class="w-3.5 h-3.5 animate-spin text-indigo-400 shrink-0" />
                                         Agent is working… check the Agent panel →
+                                    </span>
+
+                                    <!-- Failed message with retry -->
+                                    <div v-else-if="msg.status === 'failed'" class="flex flex-col gap-1.5">
+                                        <span class="text-red-400 text-sm">{{ msg.content }}</span>
+                                        <button @click="retryMessage(msg)"
+                                                :disabled="retrying === msg.id"
+                                                class="inline-flex items-center gap-1.5 text-xs text-indigo-400
+                                                       hover:text-indigo-300 transition-colors w-fit">
+                                            <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': retrying === msg.id }" />
+                                            {{ retrying === msg.id ? 'Retrying...' : 'Retry' }}
+                                        </button>
+                                    </div>
+
+                                    <!-- Pending/retrying message -->
+                                    <span v-else-if="msg.status === 'pending'"
+                                          class="flex items-center gap-2 text-slate-400 text-xs py-0.5">
+                                        <RefreshCw class="w-3.5 h-3.5 animate-spin text-indigo-400 shrink-0" />
+                                        Generating response…
                                     </span>
 
                                     <!-- Markdown-rendered message content -->

@@ -13,7 +13,7 @@ class SuperAdminSeeder extends Seeder
             ['email' => 'admin@murad.bd'],
             [
                 'name'               => 'Super Admin',
-                'password'           => bcrypt('password'),
+                'password'           => bcrypt('P@ssword'),
                 'role'               => 'superadmin',
                 'tenant_id'          => null,
                 'is_active'          => true,
@@ -21,6 +21,6 @@ class SuperAdminSeeder extends Seeder
             ]
         );
 
-        $this->command->info('SuperAdmin seeded: admin@murad.bd / password');
+        $this->command->info('SuperAdmin seeded: admin@murad.bd / P@ssword');
     }
 }

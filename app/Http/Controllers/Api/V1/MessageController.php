@@ -8,6 +8,8 @@ use App\Jobs\SendMessageJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\Project;
+use App\Models\Tenant;
+use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -103,6 +105,34 @@ class MessageController extends Controller
             'has_response' => $last && $last->role === 'assistant',
             'message'      => $last && $last->role === 'assistant' ? $last : null,
             'chat_title'   => $chat->fresh()->title,
+        ]);
+    }
+
+    public function retry(Request $request, Project $project, Chat $chat, Message $message): JsonResponse
+    {
+        $tenant = app('tenant');
+
+        abort_if($project->tenant_id !== $tenant->id, 403);
+        abort_if($chat->tenant_id   !== $tenant->id, 403);
+        abort_if($message->chat_id  !== $chat->id, 404);
+        abort_if($message->role !== 'assistant' || $message->status !== 'failed', 422);
+
+        if (!(new QuotaService())->check($tenant)) {
+            return response()->json(['success' => false, 'message' => 'quota_exceeded'], 402);
+        }
+
+        $message->update([
+            'status'        => 'pending',
+            'content'       => '',
+            'error_message' => null,
+        ]);
+
+        SendMessageJob::dispatch($chat->id, $tenant->id, $request->user()->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Retrying...',
+            'data'    => ['message_id' => $message->id],
         ]);
     }
 }
