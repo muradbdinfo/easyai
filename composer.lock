@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0dae738ce83c263f0c28e546e43b98ad",
+    "content-hash": "f6155a170ddd9572165affbece0e607d",
     "packages": [
         {
             "name": "brick/math",
@@ -3073,6 +3073,94 @@
                 "source": "https://github.com/mpdf/psr-log-aware-trait/tree/v3.0.0"
             },
             "time": "2023-05-03T06:19:36+00:00"
+        },
+        {
+            "name": "muradbdinfo/laravelai",
+            "version": "v1.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/muradbdinfo/laravelai.git",
+                "reference": "2ec7607f87397873f8f7300246021aeeb43d439f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/muradbdinfo/laravelai/zipball/2ec7607f87397873f8f7300246021aeeb43d439f",
+                "reference": "2ec7607f87397873f8f7300246021aeeb43d439f",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/http": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+                "php": "^8.2 || ^8.3 || ^8.4 || ^8.5"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^9.0 || ^10.0",
+                "phpunit/phpunit": "^10.5 || ^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "AI": "EasyAI\\LaravelAI\\Facades\\AI"
+                    },
+                    "providers": [
+                        "EasyAI\\LaravelAI\\AIServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/helpers.php"
+                ],
+                "psr-4": {
+                    "EasyAI\\LaravelAI\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Md Murad Hosen",
+                    "email": "muradbd.info@gmail.com",
+                    "homepage": "https://www.easyit.com.bd"
+                }
+            ],
+            "description": "Unified AI chat for Laravel — Ollama, OpenAI, Anthropic (Claude), DeepSeek. One interface, any AI.",
+            "keywords": [
+                "ChatGpt",
+                "ai",
+                "anthropic",
+                "artificial-intelligence",
+                "chat",
+                "claude",
+                "deepseek",
+                "gpt",
+                "laravel",
+                "laravel-package",
+                "llm",
+                "machine-learning",
+                "ollama",
+                "openai",
+                "php-ai",
+                "streaming"
+            ],
+            "support": {
+                "issues": "https://github.com/muradbdinfo/laravelai/issues",
+                "source": "https://github.com/muradbdinfo/laravelai/tree/v1.2.0"
+            },
+            "funding": [
+                {
+                    "url": "https://buymeacoffee.com/muradbdinfo",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/sponsors/muradbdinfo",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-05-04T01:48:06+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -10228,5 +10316,5 @@
         "php": "^8.1"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

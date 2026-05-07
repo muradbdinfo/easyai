@@ -80,13 +80,13 @@ Route::prefix('v1')->group(function () {
         Route::get('projects/{project}/integration-files', [IntegrationController::class, 'files']);
 
         // ── Projects ──────────────────────────────────────────────────────
-        Route::apiResource('projects', ProjectController::class);
+        Route::apiResource('projects', ProjectController::class)->names('api.projects');
         Route::delete('projects/{project}/memory', [ProjectController::class, 'clearMemory']);
         Route::patch('projects/{project}/memory',  [ProjectController::class, 'updateMemory']);
 
         // ── Chats + Messages + File Upload ────────────────────────────────
         Route::prefix('projects/{project}')->group(function () {
-            Route::apiResource('chats', ChatController::class)->except(['update']);
+            Route::apiResource('chats', ChatController::class)->except(['update'])->names('api.chats');
             Route::post('chats/{chat}/close', [ChatController::class, 'close']);
             Route::prefix('chats/{chat}')->group(function () {
                 Route::get('messages',        [MessageController::class, 'index']);
