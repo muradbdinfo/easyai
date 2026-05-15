@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Plan;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    // ─── Login ────────────────────────────────────────────────────
+    // ── Login ────────────────────────────────────────────────────────────
     public function login(Request $request): JsonResponse
     {
         $request->validate([
@@ -44,7 +47,7 @@ class AuthController extends Controller
         ]);
     }
 
-    // ─── Register ─────────────────────────────────────────────────
+    // ── Register ─────────────────────────────────────────────────────────
     public function register(Request $request): JsonResponse
     {
         $request->validate([
@@ -53,11 +56,29 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', 'min:8'],
         ]);
 
+        // Get starter plan (cheapest active plan)
+        $plan = Plan::where('is_active', true)
+            ->orderBy('price')
+            ->first();
+
+        // Create tenant for this user
+        $tenant = Tenant::create([
+            'name'        => $request->name . "'s Workspace",
+            'slug'        => Str::slug($request->name . '-' . uniqid()),
+            'plan_id'     => $plan?->id,
+            'token_quota' => $plan?->monthly_token_limit ?? 500000,
+            'tokens_used' => 0,
+            'status'      => 'trial',
+        ]);
+
+        // Create user linked to tenant
         $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => $request->password,
-            'role'     => 'admin',
+            'name'      => $request->name,
+            'email'     => $request->email,
+            'password'  => $request->password,
+            'role'      => 'admin',
+            'tenant_id' => $tenant->id,
+            'is_active' => true,
         ]);
 
         $token = $user->createToken('api-token')->plainTextToken;
@@ -77,7 +98,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // ─── Logout ───────────────────────────────────────────────────
+    // ── Logout ───────────────────────────────────────────────────────────
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
@@ -89,7 +110,7 @@ class AuthController extends Controller
         ]);
     }
 
-    // ─── Me ───────────────────────────────────────────────────────
+    // ── Me ───────────────────────────────────────────────────────────────
     public function me(Request $request): JsonResponse
     {
         $user = $request->user()->load('tenant.plan');

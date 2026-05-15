@@ -15,7 +15,6 @@
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "mpdf/mpdf": "^8.2",
-        "muradbdinfo/laravelai": "*",
         "phpoffice/phpspreadsheet": "^5.5",
         "phpoffice/phpword": "^1.4",
         "predis/predis": "^3.4",

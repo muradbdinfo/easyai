@@ -32,7 +32,8 @@ Route::prefix('v1')->group(function () {
         'throttle:60,1',
     ])->group(function () {
 
-        // ── Auth ──────────────────────────────────────────────────────────
+
+    // ── Auth ──────────────────────────────────────────────────────────
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me',      [AuthController::class, 'me']);
 
@@ -93,7 +94,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('messages',       [MessageController::class, 'store']);
                 Route::get('messages/status', [MessageController::class, 'status']);
                 Route::post("messages/{message}/retry", [MessageController::class, "retry"]);
-                Route::post('upload', [FileUploadController::class, 'store'])->name('api.chats.upload');
+		Route::post('upload', [FileUploadController::class, 'store'])->name('api.chats.upload');
+		// SSE Stream ← ADD HERE inside chats/{chat} group
+        Route::get('stream', [\App\Http\Controllers\StreamController::class, 'stream']);
             });
         });
 
