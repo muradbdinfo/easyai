@@ -13,7 +13,7 @@ use Inertia\Inertia;
 
 class KnowledgeBaseController extends Controller
 {
-    // ── Project-level KB ─────────────────────────────────────────
+    // -- Project-level KB ---------------------------------------------------
 
     public function index(Project $project)
     {
@@ -53,7 +53,7 @@ class KnowledgeBaseController extends Controller
         return back()->with('success', 'Knowledge base saved.');
     }
 
-    // ── Chat-level KB ─────────────────────────────────────────────
+    // -- Chat-level KB ------------------------------------------------------
 
     public function chatIndex(Project $project, Chat $chat)
     {
@@ -96,7 +96,7 @@ class KnowledgeBaseController extends Controller
         return back()->with('success', 'Chat knowledge base saved.');
     }
 
-    // ── Document Upload (shared for project + chat KB) ────────────
+    // -- Document Upload (shared for project + chat KB) ---------------------
 
     public function uploadDocument(Request $request, Project $project)
     {
@@ -117,11 +117,10 @@ class KnowledgeBaseController extends Controller
             return back()->withErrors(['file' => 'Supported types: PDF, DOCX, DOC, XLSX, XLS, TXT, MD']);
         }
 
-        if ($file->getSize() > 20 * 1024 * 1024) {
-            return back()->withErrors(['file' => 'File must be under 20MB.']);
+        if ($file->getSize() > 50 * 1024 * 1024) {
+            return back()->withErrors(['file' => 'File must be under 50MB.']);
         }
 
-        // Find correct KB
         if ($request->chat_id) {
             $kb = KnowledgeBase::where('chat_id', $request->chat_id)->where('is_active', true)->first();
         } else {
@@ -164,21 +163,19 @@ class KnowledgeBaseController extends Controller
         return back()->with('success', 'Document deleted.');
     }
 
-
-    // ── URL Import ──────────────────────────────────────────────
+    // -- URL Import ---------------------------------------------------------
 
     public function uploadUrl(Request $request, Project $project)
     {
         $this->authorizeTenant($project);
 
         $request->validate([
-            'url'        => ['required', 'url', 'max:2048'],
-            'title'      => ['nullable', 'string', 'max:200'],
-            'chat_id'    => ['nullable', 'integer', 'exists:chats,id'],
-            'max_pages'  => ['nullable', 'integer', 'min:1', 'max:10'],
+            'url'       => ['required', 'url', 'max:2048'],
+            'title'     => ['nullable', 'string', 'max:200'],
+            'chat_id'   => ['nullable', 'integer', 'exists:chats,id'],
+            'max_pages' => ['nullable', 'integer', 'min:1', 'max:10'],
         ]);
 
-        // Find correct KB
         if ($request->chat_id) {
             $kb = KnowledgeBase::where('chat_id', $request->chat_id)->where('is_active', true)->first();
         } else {
@@ -205,7 +202,7 @@ class KnowledgeBaseController extends Controller
         return back()->with('success', 'URL submitted. Crawling and processing...');
     }
 
-    // ── Helpers ───────────────────────────────────────────────────
+    // -- Helpers ------------------------------------------------------------
 
     private function authorizeTenant(Project $project): void
     {

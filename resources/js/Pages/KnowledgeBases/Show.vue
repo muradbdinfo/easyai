@@ -184,7 +184,7 @@ const pageTitle = computed(() =>
             <span v-for="t in ['PDF','DOCX','DOC','XLSX','XLS','TXT','MD']" :key="t"
               class="px-2 py-0.5 rounded text-xs bg-slate-700 text-slate-300">{{ t }}</span>
           </div>
-          <p class="text-xs text-slate-400">Max 20MB per file</p>
+          <p class="text-xs text-slate-400">Max 50MB per file</p>
 
           <input ref="fileInput" type="file"
             accept=".pdf,.txt,.md,.docx,.doc,.xlsx,.xls"

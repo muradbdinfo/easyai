@@ -77,7 +77,7 @@ class MessageController extends Controller
             );
         }
 
-        // SendMessageJob::dispatch($chat->id, $tenant->id, $request->user()->id); // disabled: stream path handles AI generation
+        SendMessageJob::dispatch($chat->id, $tenant->id, $request->user()->id);
 
         return response()->json([
             'success' => true,

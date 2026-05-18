@@ -96,7 +96,7 @@ Route::prefix('v1')->group(function () {
                 Route::post("messages/{message}/retry", [MessageController::class, "retry"]);
 		Route::post('upload', [FileUploadController::class, 'store'])->name('api.chats.upload');
 		// SSE Stream ← ADD HERE inside chats/{chat} group
-        Route::get('stream', [\App\Http\Controllers\StreamController::class, 'stream']);
+		Route::get('stream', [\App\Http\Controllers\Api\V1\StreamController::class, 'stream']);
             });
         });
 

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
@@ -15,24 +14,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StreamController extends Controller
 {
-    public function stream(
-        Request $request,
-        Project $project,
-        Chat $chat,
-        MemoryService $memory,
-        QuotaService $quota,
-        TokenCounterService $counter,
-    ): StreamedResponse {
+    public function stream(Request $request, Project $project, Chat $chat, MemoryService $memory, QuotaService $quota, TokenCounterService $counter): StreamedResponse
+    {
         $tenant = app('tenant');
         abort_if($project->tenant_id !== $tenant->id, 403);
         abort_if($chat->tenant_id    !== $tenant->id, 403);
         abort_if($chat->project_id   !== $project->id, 404);
 
-        $lastUserMsg = Message::where('chat_id', $chat->id)
-            ->where('role', 'user')
-            ->latest()
-            ->value('content') ?? '';
-
+        $lastUserMsg  = Message::where('chat_id', $chat->id)->where('role', 'user')->latest()->value('content') ?? '';
         $messages     = $memory->buildContext($chat, $project, $lastUserMsg);
         $ollamaUrl    = rtrim(config('ollama.url'), '/');
         $projectModel = $project->model ?? config('ollama.model');
@@ -45,16 +34,16 @@ class StreamController extends Controller
             $chatId, $tenantId, $userId,
             $quota, $counter, $tenant, $chat
         ) {
-            if (ob_get_level()) ob_end_clean();
+            // Close all output buffers safely
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+
+            // Disable buffering at PHP level
             ini_set('output_buffering', 'off');
             ini_set('zlib.output_compression', false);
 
-            $payload = json_encode([
-                'model'    => $projectModel,
-                'messages' => $messages,
-                'stream'   => true,
-            ]);
-
+            $payload      = json_encode(['model' => $projectModel, 'messages' => $messages, 'stream' => true]);
             $fullContent  = '';
             $promptTokens = 0;
             $outputTokens = 0;
@@ -65,18 +54,22 @@ class StreamController extends Controller
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
             curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+
             curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $data) use (&$fullContent, &$promptTokens, &$outputTokens) {
                 $json = json_decode($data, true);
+
                 if (isset($json['message']['content'])) {
                     $chunk = $json['message']['content'];
                     $fullContent .= $chunk;
-                    echo "data: " . json_encode(['content' => $chunk]) . "\n\n";
-                    ob_flush(); flush();
+                    echo "data: " . json_encode(['token' => $chunk]) . "\n\n";
+                    flush(); // Only flush(), no ob_flush()
                 }
+
                 if (!empty($json['done'])) {
                     $promptTokens = $json['prompt_eval_count'] ?? 0;
-                    $outputTokens = $json['eval_count'] ?? 0;
+                    $outputTokens = $json['eval_count']        ?? 0;
                 }
+
                 return strlen($data);
             });
 
@@ -85,7 +78,9 @@ class StreamController extends Controller
 
             if ($fullContent) {
                 $totalTokens = $promptTokens + $outputTokens;
-                if ($totalTokens === 0) $totalTokens = $counter->estimate($fullContent);
+                if ($totalTokens === 0) {
+                    $totalTokens = $counter->estimate($fullContent);
+                }
 
                 Message::create([
                     'chat_id'   => $chatId,
@@ -112,14 +107,20 @@ class StreamController extends Controller
                 $quota->deduct($tenant, $totalTokens);
                 $tenant->refresh();
 
-                if ($chat->title === 'New Chat' || $chat->title === null) {
-                    $firstMsg = Message::where('chat_id', $chatId)->where('role', 'user')->oldest()->value('content') ?? '';
-                    if ($firstMsg) $chat->update(['title' => \Illuminate\Support\Str::limit($firstMsg, 50)]);
+                if (!$chat->title || $chat->title === 'New Chat') {
+                    $firstMsg = Message::where('chat_id', $chatId)
+                        ->where('role', 'user')
+                        ->oldest()
+                        ->value('content') ?? '';
+                    if ($firstMsg) {
+                        $chat->update(['title' => \Illuminate\Support\Str::limit($firstMsg, 50)]);
+                    }
                 }
             }
 
-            echo "data: [DONE]\n\n";
-            ob_flush(); flush();
+            // Signal done to client
+            echo "data: " . json_encode(['done' => true]) . "\n\n";
+            flush();
 
         }, 200, [
             'Content-Type'      => 'text/event-stream',
